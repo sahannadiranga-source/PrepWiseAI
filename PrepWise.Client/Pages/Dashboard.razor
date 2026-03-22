@@ -2,6 +2,7 @@
 @attribute [Authorize]
 @inject HttpClient Http
 @inject AuthService Auth
+@inject NavigationManager Nav
 
 <div class="container py-5 mt-4">
     <div class="d-flex justify-content-between align-items-end mb-5">
@@ -126,11 +127,29 @@
                                             @if (session.Analytics != null)
                                             {
                                                 <div class="analytics-summary mb-4">
-                                                    <div class="analytics-summary__score">
-                                                        <span class="@GetScoreColor(session.Analytics.OverallScore)" style="font-size:1.8rem;font-weight:800">@session.Analytics.OverallScore%</span>
-                                                        <span class="text-muted small ms-2">Overall Score</span>
+                                                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+                                                        <div class="analytics-summary__score">
+                                                            <span class="@GetScoreColor(session.Analytics.OverallScore)" style="font-size:1.8rem;font-weight:800">@session.Analytics.OverallScore%</span>
+                                                            <span class="text-muted small ms-2">Overall Score</span>
+                                                        </div>
+                                                        @if (!string.IsNullOrEmpty(session.Analytics.WeakTopics))
+                                                        {
+                                                            <a href="@GetRetakeUrl(session)" class="btn-retake">
+                                                                🔁 Retake Weak Areas
+                                                            </a>
+                                                        }
                                                     </div>
-                                                    <div class="row g-2 mt-2">
+                                                    @if (!string.IsNullOrEmpty(session.Analytics.WeakTopics))
+                                                    {
+                                                        <div class="mb-2">
+                                                            <span class="field-label">WEAK TOPICS: </span>
+                                                            @foreach (var t in session.Analytics.WeakTopics.Split(','))
+                                                            {
+                                                                <span class="chip" style="border-color:rgba(248,113,113,0.4);color:#f87171;background:rgba(248,113,113,0.08)">@t.Trim()</span>
+                                                            }
+                                                        </div>
+                                                    }
+                                                    <div class="row g-2 mt-1">
                                                         @if (!string.IsNullOrEmpty(session.Analytics.Strengths))
                                                         {
                                                             <div class="col-md-4">
@@ -274,4 +293,16 @@
         >= 50 => "text-warning",
         _ => "text-danger"
     };
+
+    private string GetRetakeUrl(InterviewSession session)
+    {
+        var weakTopic = session.Analytics?.WeakTopics?.Split(',').FirstOrDefault()?.Trim() ?? session.InterviewType;
+        return Nav.GetUriWithQueryParameters("/interview", new Dictionary<string, object?>
+        {
+            ["topic"] = weakTopic,
+            ["level"] = session.Level,
+            ["role"] = session.TargetRole,
+            ["goal"] = session.InterviewGoal
+        });
+    }
 }

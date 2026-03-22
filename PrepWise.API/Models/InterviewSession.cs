@@ -12,6 +12,7 @@
         public string ExperienceLevel { get; set; } = "Junior"; // Intern, Junior, Mid-level, Senior
         public string Mode { get; set; } = "Text"; // Text | Timed
         public string? CvExtractedSkills { get; set; } // JSON array of skill strings
+        public string? CvProfile { get; set; }          // Full CV profile for project-specific questions
         public DateTime DateCreated { get; set; } = DateTime.UtcNow;
         public List<Question> Questions { get; set; } = new();
         public SessionAnalytics? Analytics { get; set; }

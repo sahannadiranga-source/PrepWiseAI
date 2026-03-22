@@ -15,17 +15,44 @@ namespace PrepWise.API.Services
             _httpClient = httpClient;
         }
 
-        public async Task<string> GenerateQuestionAsync(string topic, string level = "Intermediate",
-            string targetRole = "", string interviewGoal = "", string? additionalContext = null,
-            List<string>? cvSkills = null, string questionType = "Conceptual", string difficulty = "Medium")
+        public async Task<string> GenerateQuestionAsync(
+            string topic, string level = "Intermediate", string targetRole = "",
+            string interviewGoal = "", string? additionalContext = null,
+            List<string>? cvSkills = null, string questionType = "Conceptual", string difficulty = "Medium",
+            string? cvProfile = null, List<(string Q, string A)>? previousQA = null)
         {
             var sb = new StringBuilder();
             sb.Append($"You are a professional technical interviewer. Generate a single {difficulty}-difficulty {questionType} interview question about {topic}.");
-            if (!string.IsNullOrWhiteSpace(targetRole)) sb.Append($" The candidate is applying for a {targetRole} role.");
-            if (!string.IsNullOrWhiteSpace(interviewGoal)) sb.Append($" This is a {interviewGoal}-level interview.");
-            if (!string.IsNullOrWhiteSpace(additionalContext)) sb.Append($" Context: {additionalContext}.");
-            if (cvSkills?.Any() == true) sb.Append($" The candidate has skills in: {string.Join(", ", cvSkills)}. Tailor the question to their background.");
-            sb.Append(" Return ONLY the question text, no preamble, no numbering, no extra commentary.");
+
+            if (!string.IsNullOrWhiteSpace(targetRole))
+                sb.Append($" The candidate is applying for a {targetRole} role.");
+            if (!string.IsNullOrWhiteSpace(interviewGoal))
+                sb.Append($" This is a {interviewGoal}-level interview.");
+            if (!string.IsNullOrWhiteSpace(additionalContext))
+                sb.Append($" Context: {additionalContext}.");
+
+            // CV profile gives full context: projects, experience, skills
+            if (!string.IsNullOrWhiteSpace(cvProfile))
+            {
+                sb.Append($"\n\nCANDIDATE CV PROFILE:\n{cvProfile}");
+                sb.Append("\nUse this profile to ask project-specific or experience-specific questions when relevant.");
+                sb.Append(" For example, if the CV mentions a specific project, ask about its architecture, challenges, or decisions made.");
+            }
+            else if (cvSkills?.Any() == true)
+            {
+                sb.Append($" The candidate has skills in: {string.Join(", ", cvSkills)}. Tailor the question to their background.");
+            }
+
+            // Previous Q&A context for follow-up awareness
+            if (previousQA?.Any() == true)
+            {
+                sb.Append("\n\nPREVIOUS INTERVIEW Q&A (for context — avoid repeating topics, and ask follow-ups if the candidate mentioned specific technologies):");
+                foreach (var (q, a) in previousQA.TakeLast(3))
+                    sb.Append($"\nQ: {q}\nA: {a}");
+                sb.Append("\nIf the candidate mentioned a specific tool, framework, or project in their answers above, consider asking a follow-up about it.");
+            }
+
+            sb.Append("\n\nReturn ONLY the question text. No preamble, no numbering, no extra commentary.");
             return await CallGemini(sb.ToString());
         }
 
@@ -43,19 +70,16 @@ Feedback: [concise feedback] | Score: [0-100] | SuggestedAnswer: [ideal answer i
             var result = await CallGemini(prompt);
             var parts = result.Split('|');
 
-            string Get(string key) => parts.FirstOrDefault(p => p.TrimStart().StartsWith(key, StringComparison.OrdinalIgnoreCase))
-                ?.Substring(parts.FirstOrDefault(p => p.TrimStart().StartsWith(key, StringComparison.OrdinalIgnoreCase))!.IndexOf(':') + 1).Trim() ?? "";
+            string Get(string key) => parts
+                .FirstOrDefault(p => p.TrimStart().StartsWith(key, StringComparison.OrdinalIgnoreCase))
+                ?.Substring(parts.First(p => p.TrimStart().StartsWith(key, StringComparison.OrdinalIgnoreCase)).IndexOf(':') + 1)
+                .Trim() ?? "";
 
-            var feedback = Get("Feedback");
-            var scoreStr = Get("Score");
-            var suggested = Get("SuggestedAnswer");
-            var missing = Get("MissingPoints");
-            int.TryParse(scoreStr, out int score);
-
-            return (feedback, score, suggested, missing);
+            int.TryParse(Get("Score"), out int score);
+            return (Get("Feedback"), score, Get("SuggestedAnswer"), Get("MissingPoints"));
         }
 
-        public async Task<(int OverallScore, string Strengths, string Weaknesses, string Recommendations, string SkillBreakdown)>
+        public async Task<(int OverallScore, string Strengths, string Weaknesses, string Recommendations, string SkillBreakdown, string WeakTopics)>
             GenerateSessionSummaryAsync(string topic, string level, string targetRole, List<(string Q, string A, int Score)> qa)
         {
             var qaSummary = string.Join("\n", qa.Select((x, i) => $"Q{i + 1} (Score:{x.Score}): {x.Q}\nA: {x.A}"));
@@ -64,24 +88,44 @@ Feedback: [concise feedback] | Score: [0-100] | SuggestedAnswer: [ideal answer i
 {qaSummary}
 
 Respond in EXACTLY this format (use | as separator):
-OverallScore: [0-100] | Strengths: [2-3 key strengths] | Weaknesses: [2-3 areas to improve] | Recommendations: [actionable advice] | SkillBreakdown: [topic:score pairs like ""Fundamentals:75,Problem Solving:60""]";
+OverallScore: [0-100] | Strengths: [2-3 key strengths] | Weaknesses: [2-3 areas to improve] | Recommendations: [actionable advice] | SkillBreakdown: [topic:score pairs like ""Fundamentals:75,Problem Solving:60""] | WeakTopics: [comma-separated list of weak topic names the candidate should retake, e.g. ""SQL Joins,Docker Networking""]";
 
             var result = await CallGemini(prompt);
             var parts = result.Split('|');
 
-            string Get(string key) => parts.FirstOrDefault(p => p.TrimStart().StartsWith(key, StringComparison.OrdinalIgnoreCase))
-                ?.Substring(parts.FirstOrDefault(p => p.TrimStart().StartsWith(key, StringComparison.OrdinalIgnoreCase))!.IndexOf(':') + 1).Trim() ?? "";
+            string Get(string key) => parts
+                .FirstOrDefault(p => p.TrimStart().StartsWith(key, StringComparison.OrdinalIgnoreCase))
+                ?.Substring(parts.First(p => p.TrimStart().StartsWith(key, StringComparison.OrdinalIgnoreCase)).IndexOf(':') + 1)
+                .Trim() ?? "";
 
             int.TryParse(Get("OverallScore"), out int overall);
-            return (overall, Get("Strengths"), Get("Weaknesses"), Get("Recommendations"), Get("SkillBreakdown"));
+            return (overall, Get("Strengths"), Get("Weaknesses"), Get("Recommendations"), Get("SkillBreakdown"), Get("WeakTopics"));
         }
 
-        public async Task<List<string>> ExtractSkillsFromCvAsync(string cvText)
+        public async Task<(List<string> Skills, string Profile)> ExtractCvProfileAsync(string cvText)
         {
-            var prompt = $@"Extract technical skills from this CV text. Return ONLY a comma-separated list of skill names, nothing else.
-CV: {cvText[..Math.Min(cvText.Length, 3000)]}";
+            var truncated = cvText[..Math.Min(cvText.Length, 4000)];
+            var prompt = $@"Analyze this CV and extract structured information.
+
+CV TEXT:
+{truncated}
+
+Respond in EXACTLY this format (use | as separator):
+Skills: [comma-separated technical skills list] | Profile: [2-4 sentence summary covering: candidate's experience level, key technologies, notable projects with brief descriptions, and career focus. Be specific about project names and what they built.]";
+
             var result = await CallGemini(prompt);
-            return result.Split(',').Select(s => s.Trim()).Where(s => !string.IsNullOrEmpty(s)).Take(20).ToList();
+            var parts = result.Split('|');
+
+            string Get(string key) => parts
+                .FirstOrDefault(p => p.TrimStart().StartsWith(key, StringComparison.OrdinalIgnoreCase))
+                ?.Substring(parts.First(p => p.TrimStart().StartsWith(key, StringComparison.OrdinalIgnoreCase)).IndexOf(':') + 1)
+                .Trim() ?? "";
+
+            var skillsRaw = Get("Skills");
+            var profile = Get("Profile");
+            var skills = skillsRaw.Split(',').Select(s => s.Trim()).Where(s => !string.IsNullOrEmpty(s)).Take(20).ToList();
+
+            return (skills, profile);
         }
 
         private async Task<string> CallGemini(string prompt)

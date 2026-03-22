@@ -11,5 +11,6 @@
         public string ExperienceLevel { get; set; } = "Junior";
         public string Mode { get; set; } = "Text"; // Text | Timed
         public List<string>? CvSkills { get; set; }
+        public string? CvProfile { get; set; } // Full CV profile summary for project-specific questions
     }
 }

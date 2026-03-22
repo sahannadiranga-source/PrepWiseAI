@@ -37,6 +37,7 @@
         public string Weaknesses { get; set; } = string.Empty;
         public string Recommendations { get; set; } = string.Empty;
         public string SkillBreakdown { get; set; } = string.Empty;
+        public string WeakTopics { get; set; } = string.Empty; // comma-separated
         public DateTime GeneratedAt { get; set; }
     }
 

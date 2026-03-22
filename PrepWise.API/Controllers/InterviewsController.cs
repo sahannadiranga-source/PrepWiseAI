@@ -45,15 +45,14 @@ namespace PrepWise.API.Controllers
             var user = await _context.Users.FindAsync(request.UserId);
             if (user == null) return BadRequest("User not found.");
 
-            var cvSkills = request.CvSkills;
-
             string firstQuestionText;
             try
             {
                 firstQuestionText = await _aiService.GenerateQuestionAsync(
                     request.InterviewType, request.Level, request.TargetRole,
-                    request.InterviewGoal, request.AdditionalContext, cvSkills,
-                    "Conceptual", GetDifficultyForLevel(request.Level, 1));
+                    request.InterviewGoal, request.AdditionalContext, request.CvSkills,
+                    "Conceptual", GetDifficultyForLevel(request.Level, 1),
+                    request.CvProfile, null);
             }
             catch (Exception ex)
             {
@@ -71,6 +70,7 @@ namespace PrepWise.API.Controllers
                 ExperienceLevel = request.ExperienceLevel,
                 Mode = request.Mode,
                 CvExtractedSkills = request.CvSkills != null ? JsonSerializer.Serialize(request.CvSkills) : null,
+                CvProfile = request.CvProfile,
                 DateCreated = DateTime.UtcNow
             };
 
@@ -128,9 +128,16 @@ namespace PrepWise.API.Controllers
                 ? JsonSerializer.Deserialize<List<string>>(session.CvExtractedSkills)
                 : null;
 
+            // Build previous Q&A context for follow-up awareness
+            var previousQA = session.Questions
+                .Where(q => !string.IsNullOrEmpty(q.UserAnswer))
+                .Select(q => (q.Content, q.UserAnswer!))
+                .ToList();
+
             var nextQuestionText = await _aiService.GenerateQuestionAsync(
                 session.InterviewType, session.Level, session.TargetRole,
-                session.InterviewGoal, session.AdditionalContext, cvSkills, questionType, difficulty);
+                session.InterviewGoal, session.AdditionalContext, cvSkills,
+                questionType, difficulty, session.CvProfile, previousQA);
 
             var newQuestion = new Question
             {
@@ -169,7 +176,7 @@ namespace PrepWise.API.Controllers
 
             try
             {
-                var (overall, strengths, weaknesses, recommendations, skillBreakdown) =
+                var (overall, strengths, weaknesses, recommendations, skillBreakdown, weakTopics) =
                     await _aiService.GenerateSessionSummaryAsync(session.InterviewType, session.Level, session.TargetRole, qaList);
 
                 var analytics = new SessionAnalytics
@@ -180,6 +187,7 @@ namespace PrepWise.API.Controllers
                     Weaknesses = weaknesses,
                     Recommendations = recommendations,
                     SkillBreakdown = skillBreakdown,
+                    WeakTopics = weakTopics,
                     GeneratedAt = DateTime.UtcNow
                 };
 
@@ -229,14 +237,14 @@ namespace PrepWise.API.Controllers
 
             try
             {
-                var skills = await _aiService.ExtractSkillsFromCvAsync(cvText);
+                var (skills, profile) = await _aiService.ExtractCvProfileAsync(cvText);
 
                 var existing = _context.UserSkills.Where(s => s.UserId == userId && s.Source == "CV");
                 _context.UserSkills.RemoveRange(existing);
                 _context.UserSkills.AddRange(skills.Select(s => new UserSkill { UserId = userId, SkillName = s, Source = "CV" }));
                 await _context.SaveChangesAsync();
 
-                return Ok(new { Skills = skills });
+                return Ok(new { Skills = skills, Profile = profile });
             }
             catch (Exception ex)
             {

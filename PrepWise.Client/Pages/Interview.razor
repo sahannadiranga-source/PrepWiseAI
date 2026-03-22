@@ -2,6 +2,7 @@
 @attribute [Authorize]
 @inject HttpClient Http
 @inject AuthService Auth
+@inject NavigationManager Nav
 @implements IDisposable
 
 <div class="container py-5 mt-4">
@@ -107,8 +108,14 @@
                         }
                     </div>
 
-                    <div class="d-flex gap-3 justify-content-center">
+                    <div class="d-flex gap-3 justify-content-center flex-wrap">
                         <a href="/dashboard" class="btn-neon">View Dashboard</a>
+                        @if (!string.IsNullOrEmpty(analytics.WeakTopics))
+                        {
+                            <button class="btn-retake" @onclick="RetakeWeakAreas">
+                                🔁 Retake Weak Areas
+                            </button>
+                        }
                         <button class="btn-outline" @onclick="ResetInterview">New Session</button>
                     </div>
                 </div>
@@ -263,10 +270,17 @@
                         {
                             <div class="mb-4">
                                 <div class="field-label mb-2">EXTRACTED SKILLS</div>
-                                <div class="chip-row">
+                                <div class="chip-row mb-3">
                                     @foreach (var skill in cvSkills)
                                     { <span class="chip chip--active">@skill</span> }
                                 </div>
+                                @if (!string.IsNullOrEmpty(cvProfile))
+                                {
+                                    <div class="cv-profile-box">
+                                        <div class="field-label mb-1">CV PROFILE SUMMARY</div>
+                                        <p style="color:#94a3b8;font-size:0.875rem;line-height:1.6;margin:0">@cvProfile</p>
+                                    </div>
+                                }
                             </div>
                         }
 
@@ -448,6 +462,7 @@
     // CV
     private IBrowserFile? cvFile;
     private List<string> cvSkills = new();
+    private string? cvProfile;
     private bool isUploadingCv;
     private string? cvError;
 
@@ -503,6 +518,24 @@
     {
         await Auth.GetAuthenticationStateAsync();
         userId = await Auth.GetUserIdAsync();
+
+        // Handle retake pre-fill from query params
+        var uri = new Uri(Nav.Uri);
+        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        var retakeTopic = query["topic"];
+        var retakeLevel = query["level"];
+        var retakeRole = query["role"];
+        var retakeGoal = query["goal"];
+
+        if (!string.IsNullOrEmpty(retakeTopic))
+        {
+            selectedTopic = retakeTopic;
+            if (!string.IsNullOrEmpty(retakeLevel)) selectedLevel = retakeLevel;
+            if (!string.IsNullOrEmpty(retakeRole)) targetRole = retakeRole;
+            if (!string.IsNullOrEmpty(retakeGoal)) interviewGoal = retakeGoal;
+            // Jump straight to step 2 if topic is pre-filled
+            wizardStep = 2;
+        }
     }
 
     private void OnCvFileSelected(InputFileChangeEventArgs e)
@@ -529,6 +562,7 @@
             {
                 var result = await response.Content.ReadFromJsonAsync<CvUploadResponse>();
                 if (result?.Skills != null) cvSkills = result.Skills;
+                if (!string.IsNullOrEmpty(result?.Profile)) cvProfile = result.Profile;
             }
             else
             {
@@ -580,7 +614,8 @@
                 AdditionalContext = additionalContext,
                 ExperienceLevel = experienceLevel,
                 Mode = interviewMode,
-                CvSkills = cvSkills.Any() ? cvSkills : null
+                CvSkills = cvSkills.Any() ? cvSkills : null,
+                CvProfile = cvProfile
             };
             var response = await Http.PostAsJsonAsync("api/interviews/start", request);
             if (response.IsSuccessStatusCode)
@@ -700,7 +735,23 @@
         analytics = null;
         cvFile = null;
         cvSkills.Clear();
+        cvProfile = null;
         cvError = null;
+    }
+
+    private void RetakeWeakAreas()
+    {
+        if (analytics == null || string.IsNullOrEmpty(analytics.WeakTopics)) return;
+        // Take the first weak topic as the retake focus
+        var firstWeak = analytics.WeakTopics.Split(',').First().Trim();
+        var url = Nav.GetUriWithQueryParameters("/interview", new Dictionary<string, object?>
+        {
+            ["topic"] = firstWeak,
+            ["level"] = selectedLevel,
+            ["role"] = targetRole,
+            ["goal"] = interviewGoal
+        });
+        Nav.NavigateTo(url);
     }
 
     private static Dictionary<string, int> ParseSkillBreakdown(string raw)
@@ -722,5 +773,5 @@
     public class StartResponse { public int SessionId { get; set; } public int QuestionId { get; set; } public string? FirstQuestion { get; set; } }
     public class EvaluationResponse { public string? Feedback { get; set; } public int Score { get; set; } public string? SuggestedAnswer { get; set; } public string? MissingPoints { get; set; } }
     public class NextQuestionResponse { public bool Finished { get; set; } public int QuestionId { get; set; } public string? QuestionText { get; set; } public string? QuestionType { get; set; } }
-    public class CvUploadResponse { public List<string>? Skills { get; set; } }
+    public class CvUploadResponse { public List<string>? Skills { get; set; } public string? Profile { get; set; } }
 }
