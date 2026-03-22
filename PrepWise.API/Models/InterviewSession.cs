@@ -9,7 +9,11 @@
         public string TargetRole { get; set; } = "";
         public string InterviewGoal { get; set; } = "";
         public string? AdditionalContext { get; set; }
+        public string ExperienceLevel { get; set; } = "Junior"; // Intern, Junior, Mid-level, Senior
+        public string Mode { get; set; } = "Text"; // Text | Timed
+        public string? CvExtractedSkills { get; set; } // JSON array of skill strings
         public DateTime DateCreated { get; set; } = DateTime.UtcNow;
         public List<Question> Questions { get; set; } = new();
+        public SessionAnalytics? Analytics { get; set; }
     }
 }

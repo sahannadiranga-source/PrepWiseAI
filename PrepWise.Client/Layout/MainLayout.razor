@@ -2,27 +2,31 @@
 @inject NavigationManager Nav
 @inject AuthService Auth
 
+@{
+    var path = new Uri(Nav.Uri).AbsolutePath.ToLower();
+    var hideNav = path == "/login" || path == "/register" || path == "/";
+}
+
 <div class="page">
-    <nav class="top-nav">
-        <div class="container d-flex align-items-center">
-            <a class="navbar-brand fw-bold text-white fs-4 me-5" href="/dashboard">
-                Prep<span class="text-gradient">Wise</span>
-            </a>
-
-            <div class="d-flex gap-4 flex-grow-1">
-                <NavLink class="nav-link text-muted fw-semibold" href="/dashboard" Match="NavLinkMatch.All">
-                    Dashboard
-                </NavLink>
-                <NavLink class="nav-link text-muted fw-semibold" href="/interview">
-                    New Interview
-                </NavLink>
+    @if (!hideNav)
+    {
+        <nav class="top-nav">
+            <div class="container d-flex align-items-center">
+                <a class="navbar-brand fw-bold text-white fs-4 me-5" href="/dashboard">
+                    Prep<span class="text-gradient">Wise</span>
+                </a>
+                <div class="d-flex gap-4 flex-grow-1">
+                    <NavLink class="nav-link fw-semibold" href="/dashboard" Match="NavLinkMatch.All">
+                        Dashboard
+                    </NavLink>
+                    <NavLink class="nav-link fw-semibold" href="/interview">
+                        New Session
+                    </NavLink>
+                </div>
+                <button class="btn-logout" @onclick="Logout">Sign Out</button>
             </div>
-
-            <button class="btn-logout" @onclick="Logout">
-                Sign Out
-            </button>
-        </div>
-    </nav>
+        </nav>
+    }
 
     <main>
         @Body

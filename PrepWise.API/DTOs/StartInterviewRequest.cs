@@ -8,5 +8,8 @@
         public string TargetRole { get; set; } = "";
         public string InterviewGoal { get; set; } = ""; // e.g. Internship, Junior, Senior
         public string? AdditionalContext { get; set; }
+        public string ExperienceLevel { get; set; } = "Junior";
+        public string Mode { get; set; } = "Text"; // Text | Timed
+        public List<string>? CvSkills { get; set; }
     }
 }

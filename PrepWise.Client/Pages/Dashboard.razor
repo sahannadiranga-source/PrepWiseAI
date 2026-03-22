@@ -114,14 +114,53 @@
                                         <div class="session-detail animate__animated animate__fadeIn">
                                             <div class="session-detail__meta mb-3">
                                                 @if (!string.IsNullOrEmpty(session.TargetRole))
-                                                {
-                                                    <span class="detail-chip">🎯 @session.TargetRole</span>
-                                                }
+                                                { <span class="detail-chip">🎯 @session.TargetRole</span> }
                                                 @if (!string.IsNullOrEmpty(session.InterviewGoal))
-                                                {
-                                                    <span class="detail-chip">📌 @session.InterviewGoal</span>
-                                                }
+                                                { <span class="detail-chip">📌 @session.InterviewGoal</span> }
+                                                @if (!string.IsNullOrEmpty(session.ExperienceLevel))
+                                                { <span class="detail-chip">👤 @session.ExperienceLevel</span> }
+                                                @if (!string.IsNullOrEmpty(session.Mode))
+                                                { <span class="detail-chip">⚙ @session.Mode</span> }
                                             </div>
+
+                                            @if (session.Analytics != null)
+                                            {
+                                                <div class="analytics-summary mb-4">
+                                                    <div class="analytics-summary__score">
+                                                        <span class="@GetScoreColor(session.Analytics.OverallScore)" style="font-size:1.8rem;font-weight:800">@session.Analytics.OverallScore%</span>
+                                                        <span class="text-muted small ms-2">Overall Score</span>
+                                                    </div>
+                                                    <div class="row g-2 mt-2">
+                                                        @if (!string.IsNullOrEmpty(session.Analytics.Strengths))
+                                                        {
+                                                            <div class="col-md-4">
+                                                                <div class="analytics-block analytics-block--green">
+                                                                    <div class="analytics-block__label">💪 STRENGTHS</div>
+                                                                    <p class="analytics-block__text">@session.Analytics.Strengths</p>
+                                                                </div>
+                                                            </div>
+                                                        }
+                                                        @if (!string.IsNullOrEmpty(session.Analytics.Weaknesses))
+                                                        {
+                                                            <div class="col-md-4">
+                                                                <div class="analytics-block analytics-block--red">
+                                                                    <div class="analytics-block__label">⚠ WEAKNESSES</div>
+                                                                    <p class="analytics-block__text">@session.Analytics.Weaknesses</p>
+                                                                </div>
+                                                            </div>
+                                                        }
+                                                        @if (!string.IsNullOrEmpty(session.Analytics.Recommendations))
+                                                        {
+                                                            <div class="col-md-4">
+                                                                <div class="analytics-block analytics-block--blue">
+                                                                    <div class="analytics-block__label">📌 RECOMMENDATIONS</div>
+                                                                    <p class="analytics-block__text">@session.Analytics.Recommendations</p>
+                                                                </div>
+                                                            </div>
+                                                        }
+                                                    </div>
+                                                </div>
+                                            }
 
                                             @for (int i = 0; i < session.Questions.Count; i++)
                                             {
@@ -132,9 +171,7 @@
                                                         <span class="qa-q-num">Q@(qi + 1)</span>
                                                         <p class="qa-question mb-0">@q.Content</p>
                                                         @if (q.Score > 0)
-                                                        {
-                                                            <span class="qa-score @GetScoreColor(q.Score)">@q.Score%</span>
-                                                        }
+                                                        { <span class="qa-score @GetScoreColor(q.Score)">@q.Score%</span> }
                                                     </div>
                                                     @if (!string.IsNullOrEmpty(q.UserAnswer))
                                                     {
@@ -146,6 +183,20 @@
                                                                 <div class="qa-feedback">
                                                                     <span class="qa-feedback-label">AI FEEDBACK</span>
                                                                     <p class="qa-feedback-text">@q.Feedback</p>
+                                                                </div>
+                                                            }
+                                                            @if (!string.IsNullOrEmpty(q.SuggestedAnswer))
+                                                            {
+                                                                <div class="qa-feedback" style="border-left-color:rgba(52,211,153,0.5);background:rgba(52,211,153,0.04);margin-top:0.5rem">
+                                                                    <span class="qa-feedback-label" style="color:#34d399">✅ SUGGESTED ANSWER</span>
+                                                                    <p class="qa-feedback-text">@q.SuggestedAnswer</p>
+                                                                </div>
+                                                            }
+                                                            @if (!string.IsNullOrEmpty(q.MissingPoints))
+                                                            {
+                                                                <div class="qa-feedback" style="border-left-color:rgba(251,191,36,0.5);background:rgba(251,191,36,0.04);margin-top:0.5rem">
+                                                                    <span class="qa-feedback-label" style="color:#fbbf24">⚠ MISSING POINTS</span>
+                                                                    <p class="qa-feedback-text">@q.MissingPoints</p>
                                                                 </div>
                                                             }
                                                         </div>

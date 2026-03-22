@@ -15,34 +15,85 @@
                     <p class="text-muted">@loadingMessage</p>
                 </div>
             }
-            else if (isFinished)
+            else if (isFinished && analytics == null)
             {
-                <!-- Summary Screen -->
-                <div class="glass-panel animate__animated animate__zoomIn text-center mb-4">
-                    <div class="finish-icon mb-3"></div>
-                    <h2 class="text-gradient fw-bold mb-1">Interview Complete!</h2>
-                    <p class="text-muted mb-4">Here's your session breakdown.</p>
+                <div class="glass-panel text-center py-5">
+                    <div class="spinner-border text-info mb-3" style="width:2rem;height:2rem;"></div>
+                    <p class="text-muted">Generating your performance report...</p>
+                </div>
+            }
+            else if (isFinished && analytics != null)
+            {
+                @* ── SUMMARY SCREEN ── *@
+                <div class="glass-panel animate__animated animate__zoomIn mb-4">
+                    <div class="text-center mb-4">
+                        <div style="font-size:3rem">🎯</div>
+                        <h2 class="text-gradient fw-bold mb-1">Interview Complete!</h2>
+                        <p class="text-muted">Here's your full performance breakdown.</p>
+                    </div>
 
                     <div class="row g-3 mb-4">
                         <div class="col-4">
                             <div class="summary-stat">
-                                <div class="summary-stat__value text-gradient">@totalElapsed</div>
+                                <div class="summary-stat__value text-gradient">@analytics.OverallScore%</div>
+                                <div class="summary-stat__label">Overall Score</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="summary-stat">
+                                <div class="summary-stat__value text-white">@totalElapsed</div>
                                 <div class="summary-stat__label">Total Time</div>
                             </div>
                         </div>
                         <div class="col-4">
                             <div class="summary-stat">
-                                <div class="summary-stat__value text-white">@questionTimings.Count</div>
+                                <div class="summary-stat__value" style="color:#34d399">@questionTimings.Count</div>
                                 <div class="summary-stat__label">Questions</div>
                             </div>
                         </div>
-                        <div class="col-4">
-                            <div class="summary-stat">
-                                <div class="summary-stat__value" style="color:#34d399">@(questionTimings.Any() ? FormatTime(questionTimings.Average(t => t.TotalSeconds)) : "0s")</div>
-                                <div class="summary-stat__label">Avg / Question</div>
+                    </div>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4">
+                            <div class="analytics-block analytics-block--green">
+                                <div class="analytics-block__label">💪 STRENGTHS</div>
+                                <p class="analytics-block__text">@analytics.Strengths</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="analytics-block analytics-block--red">
+                                <div class="analytics-block__label">⚠ WEAKNESSES</div>
+                                <p class="analytics-block__text">@analytics.Weaknesses</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="analytics-block analytics-block--blue">
+                                <div class="analytics-block__label">📌 RECOMMENDATIONS</div>
+                                <p class="analytics-block__text">@analytics.Recommendations</p>
                             </div>
                         </div>
                     </div>
+
+                    @if (!string.IsNullOrEmpty(analytics.SkillBreakdown))
+                    {
+                        <div class="mb-4">
+                            <div class="field-label mb-3">SKILL BREAKDOWN</div>
+                            <div class="skill-breakdown-grid">
+                                @foreach (var pair in ParseSkillBreakdown(analytics.SkillBreakdown))
+                                {
+                                    <div class="skill-bar-item">
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <span style="color:#cbd5e1;font-size:0.85rem">@pair.Key</span>
+                                            <span style="color:#94a3b8;font-size:0.85rem">@pair.Value%</span>
+                                        </div>
+                                        <div class="progress-bar-wrap">
+                                            <div class="progress-bar-fill" style="width:@pair.Value%"></div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
 
                     <div class="timing-breakdown mb-4">
                         @for (int i = 0; i < questionTimings.Count; i++)
@@ -50,47 +101,46 @@
                             var pct = totalSeconds > 0 ? (int)(questionTimings[i].TotalSeconds / totalSeconds * 100) : 0;
                             <div class="timing-row">
                                 <span class="timing-label">Q@(i + 1)</span>
-                                <div class="timing-bar-wrap">
-                                    <div class="timing-bar-fill" style="width:@pct%"></div>
-                                </div>
+                                <div class="timing-bar-wrap"><div class="timing-bar-fill" style="width:@pct%"></div></div>
                                 <span class="timing-value">@FormatTime(questionTimings[i].TotalSeconds)</span>
                             </div>
                         }
                     </div>
 
                     <div class="d-flex gap-3 justify-content-center">
-                        <a href="/dashboard" class="btn-neon">View Results</a>
+                        <a href="/dashboard" class="btn-neon">View Dashboard</a>
                         <button class="btn-outline" @onclick="ResetInterview">New Session</button>
                     </div>
                 </div>
             }
             else if (currentQuestion == null)
             {
-                <!-- Step 1: Topic + Level -->
+                @* ── WIZARD ── *@
+                <div class="wizard-progress mb-4">
+                    @for (int i = 1; i <= 5; i++)
+                    {
+                        var si = i;
+                        <div class="wizard-step @(wizardStep == si ? "wizard-step--active" : wizardStep > si ? "wizard-step--done" : "")"
+                             @onclick="() => { if (wizardStep > si) wizardStep = si; }">
+                            @(wizardStep > si ? "✓" : si.ToString())
+                        </div>
+                        @if (i < 5) { <div class="wizard-step-line @(wizardStep > i ? "wizard-step-line--done" : "")"></div> }
+                    }
+                </div>
+
+                @* Step 1: Topic + Level *@
                 @if (wizardStep == 1)
                 {
                     <div class="glass-panel animate__animated animate__fadeIn">
-                        <div class="wizard-header mb-4">
-                            <div class="wizard-steps">
-                                <div class="wizard-step wizard-step--active">1</div>
-                                <div class="wizard-step-line"></div>
-                                <div class="wizard-step">2</div>
-                            </div>
-                            <h1 class="display-6 fw-bold mt-3">Choose <span class="text-gradient">Topic & Level</span></h1>
-                            <p class="text-muted">Pick what you want to be tested on and how hard.</p>
-                        </div>
+                        <h1 class="display-6 fw-bold mb-1">Choose <span class="text-gradient">Topic & Level</span></h1>
+                        <p class="text-muted mb-4">Pick what you want to be tested on and how hard.</p>
 
-                        <h6 class="field-label mb-3">TOPIC</h6>
-                        <div class="row g-3 mb-5">
-                            @foreach (var topic in topics)
+                        <h6 class="field-label mb-2">TOPIC — type any IT topic or pick a preset</h6>
+                        <input class="field-input mb-3" @bind="selectedTopic" placeholder="e.g. .NET, React, Kubernetes, Machine Learning..." />
+                        <div class="chip-row mb-4">
+                            @foreach (var t in topicPresets)
                             {
-                                <div class="col-md-4">
-                                    <div class="topic-card @(selectedTopic == topic.Key ? "topic-card--active" : "")"
-                                         @onclick="() => selectedTopic = topic.Key">
-                                        <div class="topic-icon">@topic.Value.Icon</div>
-                                        <h6 class="mb-0 mt-2">@topic.Key</h6>
-                                    </div>
-                                </div>
+                                <span class="chip @(selectedTopic == t ? "chip--active" : "")" @onclick="() => selectedTopic = t">@t</span>
                             }
                         </div>
 
@@ -110,81 +160,188 @@
                         </div>
 
                         <div class="text-end">
-                            <button class="btn-neon px-5" @onclick="() => wizardStep = 2">
-                                Next →
-                            </button>
+                            <button class="btn-neon px-5" @onclick="() => wizardStep = 2"
+                                    disabled="@string.IsNullOrWhiteSpace(selectedTopic)">Next →</button>
                         </div>
                     </div>
                 }
 
-                <!-- Step 2: Context -->
+                @* Step 2: Role + Goal *@
                 @if (wizardStep == 2)
                 {
                     <div class="glass-panel animate__animated animate__fadeIn">
-                        <div class="wizard-header mb-4">
-                            <div class="wizard-steps">
-                                <div class="wizard-step wizard-step--done" @onclick="() => wizardStep = 1">✓</div>
-                                <div class="wizard-step-line wizard-step-line--done"></div>
-                                <div class="wizard-step wizard-step--active">2</div>
-                            </div>
-                            <h1 class="display-6 fw-bold mt-3">Tell us <span class="text-gradient">About You</span></h1>
-                            <p class="text-muted">This helps the AI tailor questions to your situation.</p>
-                        </div>
+                        <h1 class="display-6 fw-bold mb-1">Your <span class="text-gradient">Role & Goal</span></h1>
+                        <p class="text-muted mb-4">Help the AI tailor questions to your situation.</p>
 
                         <div class="mb-4">
                             <label class="field-label">TARGET ROLE</label>
                             <input class="field-input" @bind="targetRole" placeholder="e.g. Backend Developer, Full Stack Engineer..." />
                             <div class="chip-row mt-2">
                                 @foreach (var s in roleSuggestions)
-                                {
-                                    <span class="chip @(targetRole == s ? "chip--active" : "")" @onclick="() => targetRole = s">@s</span>
-                                }
-                            </div>
-                        </div>
-
-                        <div class="mb-4">
-                            <label class="field-label">INTERVIEW GOAL</label>
-                            <input class="field-input" @bind="interviewGoal" placeholder="e.g. Internship, Junior Dev, Senior Engineer..." />
-                            <div class="chip-row mt-2">
-                                @foreach (var s in goalSuggestions)
-                                {
-                                    <span class="chip @(interviewGoal == s ? "chip--active" : "")" @onclick="() => interviewGoal = s">@s</span>
-                                }
+                                { <span class="chip @(targetRole == s ? "chip--active" : "")" @onclick="() => targetRole = s">@s</span> }
                             </div>
                         </div>
 
                         <div class="mb-5">
-                            <label class="field-label">ADDITIONAL CONTEXT <span class="text-muted fw-normal">(optional)</span></label>
-                            <textarea class="field-input" style="min-height:80px;resize:vertical;" @bind="additionalContext"
-                                      placeholder="e.g. I have 2 years of experience, focusing on microservices..."></textarea>
+                            <label class="field-label">INTERVIEW GOAL</label>
+                            <input class="field-input" @bind="interviewGoal" placeholder="e.g. Internship, Junior Dev, Senior Engineer..." />
+                            <div class="chip-row mt-2">
+                                @foreach (var s in goalSuggestions)
+                                { <span class="chip @(interviewGoal == s ? "chip--active" : "")" @onclick="() => interviewGoal = s">@s</span> }
+                            </div>
                         </div>
-
-                        @if (!string.IsNullOrEmpty(errorMessage))
-                        {
-                            <div class="alert-error mb-3">⚠ @errorMessage</div>
-                        }
 
                         <div class="d-flex justify-content-between">
                             <button class="btn-outline" @onclick="() => wizardStep = 1">← Back</button>
-                            <button class="btn-neon px-5" @onclick="StartNewInterview"
-                                    disabled="@(string.IsNullOrWhiteSpace(targetRole) || string.IsNullOrWhiteSpace(interviewGoal))">
-                                Start Interview →
-                            </button>
+                            <button class="btn-neon px-5" @onclick="() => wizardStep = 3"
+                                    disabled="@(string.IsNullOrWhiteSpace(targetRole) || string.IsNullOrWhiteSpace(interviewGoal))">Next →</button>
+                        </div>
+                    </div>
+                }
+
+                @* Step 3: Experience Level + Context *@
+                @if (wizardStep == 3)
+                {
+                    <div class="glass-panel animate__animated animate__fadeIn">
+                        <h1 class="display-6 fw-bold mb-1">Your <span class="text-gradient">Experience</span></h1>
+                        <p class="text-muted mb-4">This shapes the depth and style of questions.</p>
+
+                        <h6 class="field-label mb-3">EXPERIENCE LEVEL</h6>
+                        <div class="row g-3 mb-4">
+                            @foreach (var exp in experienceLevels)
+                            {
+                                <div class="col-6 col-md-3">
+                                    <div class="level-card @(experienceLevel == exp.Key ? "level-card--active" : "")"
+                                         @onclick="() => experienceLevel = exp.Key">
+                                        <div class="level-icon">@exp.Value.Icon</div>
+                                        <div class="fw-semibold">@exp.Key</div>
+                                        <div class="text-muted small">@exp.Value.Desc</div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="field-label">ADDITIONAL CONTEXT <span class="text-muted fw-normal">(optional)</span></label>
+                            <textarea class="field-input" style="min-height:80px;resize:vertical;" @bind="additionalContext"
+                                      placeholder="e.g. 2 years experience, focusing on microservices..."></textarea>
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <button class="btn-outline" @onclick="() => wizardStep = 2">← Back</button>
+                            <button class="btn-neon px-5" @onclick="() => wizardStep = 4">Next →</button>
+                        </div>
+                    </div>
+                }
+
+                @* Step 4: CV Upload *@
+                @if (wizardStep == 4)
+                {
+                    <div class="glass-panel animate__animated animate__fadeIn">
+                        <h1 class="display-6 fw-bold mb-1">Upload <span class="text-gradient">Your CV</span></h1>
+                        <p class="text-muted mb-4">Optional — lets the AI ask questions based on your actual skills.</p>
+
+                        <div class="cv-upload-zone mb-4 @(cvFile != null ? "cv-upload-zone--active" : "")">
+                            <label for="cvFileInput" style="cursor:pointer;display:block;width:100%;height:100%">
+                                <InputFile id="cvFileInput" OnChange="OnCvFileSelected" accept=".txt,.pdf" style="display:none" />
+                                @if (cvFile != null)
+                                {
+                                    <div style="font-size:2rem">📄</div>
+                                    <p style="color:#34d399;font-weight:600;margin:0.5rem 0 0">@cvFile.Name</p>
+                                    <p class="text-muted" style="font-size:0.8rem">@(cvFile.Size / 1024) KB — click to change</p>
+                                }
+                                else
+                                {
+                                    <div style="font-size:2.5rem">📎</div>
+                                    <p style="color:#94a3b8;margin:0.5rem 0 0">Click to upload CV (PDF or TXT)</p>
+                                    <p class="text-muted" style="font-size:0.8rem">Max 5MB</p>
+                                }
+                            </label>
+                        </div>
+
+                        @if (cvSkills.Any())
+                        {
+                            <div class="mb-4">
+                                <div class="field-label mb-2">EXTRACTED SKILLS</div>
+                                <div class="chip-row">
+                                    @foreach (var skill in cvSkills)
+                                    { <span class="chip chip--active">@skill</span> }
+                                </div>
+                            </div>
+                        }
+
+                        @if (!string.IsNullOrEmpty(cvError))
+                        { <div class="alert-error mb-3">⚠ @cvError</div> }
+
+                        <div class="d-flex justify-content-between">
+                            <button class="btn-outline" @onclick="() => wizardStep = 3">← Back</button>
+                            <div class="d-flex gap-2">
+                                @if (cvFile != null && !cvSkills.Any())
+                                {
+                                    <button class="btn-outline" @onclick="ProcessCv" disabled="@isUploadingCv">
+                                        @if (isUploadingCv) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                        Extract Skills
+                                    </button>
+                                }
+                                <button class="btn-neon px-5" @onclick="() => wizardStep = 5">
+                                    @(cvSkills.Any() ? "Next →" : "Skip →")
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                @* Step 5: Interview Mode *@
+                @if (wizardStep == 5)
+                {
+                    <div class="glass-panel animate__animated animate__fadeIn">
+                        <h1 class="display-6 fw-bold mb-1">Interview <span class="text-gradient">Mode</span></h1>
+                        <p class="text-muted mb-4">How do you want to be tested?</p>
+
+                        <div class="row g-3 mb-5">
+                            <div class="col-md-6">
+                                <div class="mode-card @(interviewMode == "Text" ? "mode-card--active" : "")"
+                                     @onclick='() => interviewMode = "Text"'>
+                                   
+                                    <h5 class="fw-bold mt-2 mb-1">Answer at your own pace. No time pressure.</h5>
+                                    <p class="text-muted small mb-0"></p>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mode-card @(interviewMode == "Timed" ? "mode-card--active" : "")"
+                                     @onclick='() => interviewMode = "Timed"'>
+                                   
+                                    <h5 class="fw-bold mt-2 mb-1">Timer per question. Simulates real pressure.</h5>
+                                    <p class="text-muted small mb-0"></p>
+                                </div>
+                            </div>
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(errorMessage))
+                        { <div class="alert-error mb-3">⚠ @errorMessage</div> }
+
+                        <div class="d-flex justify-content-between">
+                            <button class="btn-outline" @onclick="() => wizardStep = 4">← Back</button>
+                            <button class="btn-neon px-5" @onclick="StartNewInterview">Start Interview →</button>
                         </div>
                     </div>
                 }
             }
             else
             {
-                <!-- Question Panel - Split Layout -->
+                @* ── ACTIVE INTERVIEW SPLIT LAYOUT ── *@
                 <div class="interview-split animate__animated animate__fadeIn">
 
-                    <!-- LEFT: Question -->
+                    @* LEFT: Question *@
                     <div class="interview-split__question">
                         <div class="d-flex align-items-center justify-content-between mb-3">
                             <div class="d-flex align-items-center gap-2">
                                 <span class="topic-badge">@selectedTopic</span>
                                 <span class="level-badge level-badge--@selectedLevel.ToLower()">@selectedLevel</span>
+                                @if (!string.IsNullOrEmpty(currentQuestionType))
+                                {
+                                    <span class="qtype-badge">@currentQuestionType</span>
+                                }
                             </div>
                             <span class="question-counter">@questionNumber / 5</span>
                         </div>
@@ -212,21 +369,17 @@
                         }
                     </div>
 
-                    <!-- RIGHT: Answer + Feedback -->
+                    @* RIGHT: Answer + Feedback *@
                     <div class="interview-split__answer">
                         @if (feedback == null)
                         {
                             <h6 class="field-label mb-2">YOUR ANSWER</h6>
-                            <textarea class="answer-input w-100 mb-3"
-                                      style="min-height: 260px;"
-                                      @bind="userAnswer"
-                                      @bind:event="oninput"
+                            <textarea class="answer-input w-100 mb-3" style="min-height:260px;"
+                                      @bind="userAnswer" @bind:event="oninput"
                                       placeholder="Type your answer here..."></textarea>
 
                             @if (!string.IsNullOrEmpty(errorMessage))
-                            {
-                                <div class="alert-error mb-3">⚠ @errorMessage</div>
-                            }
+                            { <div class="alert-error mb-3">⚠ @errorMessage</div> }
 
                             <button class="btn-neon w-100" @onclick="SubmitAnswer"
                                     disabled="@(string.IsNullOrWhiteSpace(userAnswer))">
@@ -235,18 +388,31 @@
                         }
                         else
                         {
-                            <!-- Feedback -->
                             <div class="d-flex align-items-center gap-3 mb-4">
-                                <div class="score-ring @GetScoreClass(score)">
-                                    <span>@score</span>
-                                </div>
+                                <div class="score-ring @GetScoreClass(score)"><span>@score</span></div>
                                 <div>
                                     <h5 class="fw-bold mb-1" style="color:#f1f5f9">AI Evaluation</h5>
                                     <p class="mb-0" style="color:#94a3b8;font-size:0.9rem;">@feedback</p>
                                 </div>
                             </div>
 
-                            <div class="border-top border-secondary pt-3 mb-4">
+                            @if (!string.IsNullOrEmpty(suggestedAnswer))
+                            {
+                                <div class="feedback-block feedback-block--green mb-3">
+                                    <div class="feedback-block__label">✅ SUGGESTED ANSWER</div>
+                                    <p class="feedback-block__text">@suggestedAnswer</p>
+                                </div>
+                            }
+
+                            @if (!string.IsNullOrEmpty(missingPoints))
+                            {
+                                <div class="feedback-block feedback-block--orange mb-3">
+                                    <div class="feedback-block__label">⚠ MISSING POINTS</div>
+                                    <p class="feedback-block__text">@missingPoints</p>
+                                </div>
+                            }
+
+                            <div class="border-top border-secondary pt-3 mb-3">
                                 <h6 class="field-label mb-2">YOUR ANSWER</h6>
                                 <p style="color:#94a3b8;font-size:0.9rem;line-height:1.6;">@userAnswer</p>
                             </div>
@@ -261,7 +427,6 @@
                             </div>
                         }
                     </div>
-
                 </div>
             }
 
@@ -270,23 +435,37 @@
 </div>
 
 @code {
-    // Wizard
+    // Wizard state
     private int wizardStep = 1;
     private string selectedTopic = ".NET";
     private string selectedLevel = "Intermediate";
     private string targetRole = "";
     private string interviewGoal = "";
     private string? additionalContext;
+    private string experienceLevel = "Junior";
+    private string interviewMode = "Text";
+
+    // CV
+    private IBrowserFile? cvFile;
+    private List<string> cvSkills = new();
+    private bool isUploadingCv;
+    private string? cvError;
 
     // Session
     private string? currentQuestion;
+    private string? currentQuestionType;
     private int questionId, sessionId, questionNumber = 1, userId;
     private string userAnswer = "";
     private string? feedback;
+    private string? suggestedAnswer;
+    private string? missingPoints;
     private int score;
     private bool isLoading, isFinished;
     private string loadingMessage = "Loading...";
     private string? errorMessage;
+
+    // Analytics
+    private SessionAnalytics? analytics;
 
     // Timer
     private System.Threading.Timer? _timer;
@@ -295,16 +474,9 @@
     private double totalSeconds => questionTimings.Sum(t => t.TotalSeconds);
     private string totalElapsed => FormatTime(totalSeconds);
 
-    private record TopicInfo(string Name, string Icon);
-    private Dictionary<string, TopicInfo> topics = new()
-    {
-        [".NET"]           = new(".NET", ""),
-        ["SQL"]            = new("SQL", ""),
-        ["DevOps"]         = new("DevOps", ""),
-        ["System Design"]  = new("System Design", ""),
-        ["JavaScript"]     = new("JavaScript", ""),
-        ["React"]          = new("React", ""),
-    };
+    private string[] topicPresets = [".NET", "Java", "Python", "JavaScript", "React", "Angular",
+        "Node.js", "SQL", "DevOps", "Docker", "Kubernetes", "AWS", "Azure",
+        "System Design", "Data Science", "Machine Learning", "Cybersecurity", "UI/UX"];
 
     private record LevelInfo(string Icon, string Desc);
     private Dictionary<string, LevelInfo> levels = new()
@@ -314,13 +486,57 @@
         ["Pro"]          = new("", "Deep expertise"),
     };
 
-    private string[] roleSuggestions = ["Backend Developer", "Full Stack Developer", "Frontend Developer", "DevOps Engineer", "Data Engineer", "Software Architect"];
-    private string[] goalSuggestions = ["Internship", "Junior Developer", "Mid-level Developer", "Senior Developer", "Tech Lead"];
+    private Dictionary<string, LevelInfo> experienceLevels = new()
+    {
+        ["No Experience"] = new("", "Student / Bootcamp"),
+        ["Intern"]        = new("", "0-1 year"),
+        ["Junior"]        = new("", "1-3 years"),
+        ["Mid-level"]     = new("", "3-6 years"),
+    };
+
+    private string[] roleSuggestions = ["Backend Developer", "Full Stack Developer", "Frontend Developer",
+        "DevOps Engineer", "Data Engineer", "Software Architect", "QA Engineer"];
+    private string[] goalSuggestions = ["Internship", "Junior Developer", "Mid-level Developer",
+        "Senior Developer", "Tech Lead"];
 
     protected override async Task OnInitializedAsync()
     {
         await Auth.GetAuthenticationStateAsync();
         userId = await Auth.GetUserIdAsync();
+    }
+
+    private void OnCvFileSelected(InputFileChangeEventArgs e)
+    {
+        cvFile = e.File;
+        cvSkills.Clear();
+        cvError = null;
+    }
+
+    private async Task ProcessCv()
+    {
+        if (cvFile == null) return;
+        isUploadingCv = true;
+        cvError = null;
+        try
+        {
+            using var content = new MultipartFormDataContent();
+            var stream = cvFile.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024);
+            content.Add(new StreamContent(stream), "file", cvFile.Name);
+            content.Add(new StringContent(userId.ToString()), "userId");
+
+            var response = await Http.PostAsync("api/interviews/upload-cv", content);
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<CvUploadResponse>();
+                if (result?.Skills != null) cvSkills = result.Skills;
+            }
+            else
+            {
+                cvError = "Could not extract skills. You can still skip this step.";
+            }
+        }
+        catch { cvError = "Upload failed. You can skip this step."; }
+        isUploadingCv = false;
     }
 
     private void StartTimer()
@@ -352,7 +568,6 @@
         errorMessage = null;
         isLoading = true;
         loadingMessage = "Generating your first question...";
-
         try
         {
             var request = new
@@ -362,10 +577,12 @@
                 Level = selectedLevel,
                 TargetRole = targetRole,
                 InterviewGoal = interviewGoal,
-                AdditionalContext = additionalContext
+                AdditionalContext = additionalContext,
+                ExperienceLevel = experienceLevel,
+                Mode = interviewMode,
+                CvSkills = cvSkills.Any() ? cvSkills : null
             };
             var response = await Http.PostAsJsonAsync("api/interviews/start", request);
-
             if (response.IsSuccessStatusCode)
             {
                 var result = await response.Content.ReadFromJsonAsync<StartResponse>();
@@ -375,6 +592,7 @@
                     questionId = result.QuestionId;
                     sessionId = result.SessionId;
                     questionNumber = 1;
+                    currentQuestionType = "Conceptual";
                     userAnswer = "";
                     feedback = null;
                     questionTimings.Clear();
@@ -384,38 +602,35 @@
             else
             {
                 var body = await response.Content.ReadAsStringAsync();
-                errorMessage = $"Error {(int)response.StatusCode}: {body}";
+                errorMessage = $"Failed to start session: {body}";
             }
         }
         catch { errorMessage = "Could not connect to server."; }
-
         isLoading = false;
     }
 
     private async Task SubmitAnswer()
     {
         if (string.IsNullOrWhiteSpace(userAnswer)) return;
-
         StopTimer();
         errorMessage = null;
         isLoading = true;
         loadingMessage = "Evaluating your answer...";
-
         try
         {
             var request = new { QuestionId = questionId, UserAnswer = userAnswer };
             var response = await Http.PostAsJsonAsync("api/interviews/submit-answer", request);
-
             if (response.IsSuccessStatusCode)
             {
                 var result = await response.Content.ReadFromJsonAsync<EvaluationResponse>();
                 feedback = result?.Feedback ?? "No feedback available.";
                 score = result?.Score ?? 0;
+                suggestedAnswer = result?.SuggestedAnswer;
+                missingPoints = result?.MissingPoints;
             }
             else { errorMessage = "Failed to submit answer. Please try again."; }
         }
         catch { errorMessage = "Could not connect to server."; }
-
         isLoading = false;
     }
 
@@ -424,7 +639,6 @@
         errorMessage = null;
         isLoading = true;
         loadingMessage = "Generating next question...";
-
         try
         {
             var response = await Http.PostAsync($"api/interviews/{sessionId}/next-question", null);
@@ -434,21 +648,38 @@
                 if (result!.Finished)
                 {
                     isFinished = true;
+                    isLoading = true;
+                    loadingMessage = "Generating your performance report...";
+                    await LoadAnalytics();
                 }
                 else
                 {
                     currentQuestion = result.QuestionText;
                     questionId = result.QuestionId;
+                    currentQuestionType = result.QuestionType;
                     questionNumber++;
                     userAnswer = "";
                     feedback = null;
+                    suggestedAnswer = null;
+                    missingPoints = null;
                     StartTimer();
                 }
             }
             else { errorMessage = "Failed to load next question."; }
         }
         catch { errorMessage = "Could not connect to server."; }
+        isLoading = false;
+    }
 
+    private async Task LoadAnalytics()
+    {
+        try
+        {
+            var response = await Http.GetAsync($"api/interviews/summary/{sessionId}");
+            if (response.IsSuccessStatusCode)
+                analytics = await response.Content.ReadFromJsonAsync<SessionAnalytics>();
+        }
+        catch { }
         isLoading = false;
     }
 
@@ -457,6 +688,8 @@
         _timer?.Dispose();
         currentQuestion = null;
         feedback = null;
+        suggestedAnswer = null;
+        missingPoints = null;
         userAnswer = "";
         isFinished = false;
         errorMessage = null;
@@ -464,6 +697,22 @@
         wizardStep = 1;
         questionTimings.Clear();
         questionSeconds = 0;
+        analytics = null;
+        cvFile = null;
+        cvSkills.Clear();
+        cvError = null;
+    }
+
+    private static Dictionary<string, int> ParseSkillBreakdown(string raw)
+    {
+        var result = new Dictionary<string, int>();
+        foreach (var pair in raw.Split(','))
+        {
+            var parts = pair.Split(':');
+            if (parts.Length == 2 && int.TryParse(parts[1].Trim(), out int val))
+                result[parts[0].Trim()] = val;
+        }
+        return result;
     }
 
     private string GetScoreClass(int s) => s switch { >= 80 => "score-ring--high", >= 50 => "score-ring--mid", _ => "score-ring--low" };
@@ -471,6 +720,7 @@
     public void Dispose() => _timer?.Dispose();
 
     public class StartResponse { public int SessionId { get; set; } public int QuestionId { get; set; } public string? FirstQuestion { get; set; } }
-    public class EvaluationResponse { public string? Feedback { get; set; } public int Score { get; set; } }
-    public class NextQuestionResponse { public bool Finished { get; set; } public int QuestionId { get; set; } public string? QuestionText { get; set; } }
+    public class EvaluationResponse { public string? Feedback { get; set; } public int Score { get; set; } public string? SuggestedAnswer { get; set; } public string? MissingPoints { get; set; } }
+    public class NextQuestionResponse { public bool Finished { get; set; } public int QuestionId { get; set; } public string? QuestionText { get; set; } public string? QuestionType { get; set; } }
+    public class CvUploadResponse { public List<string>? Skills { get; set; } }
 }
