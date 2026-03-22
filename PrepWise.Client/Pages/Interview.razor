@@ -2,10 +2,11 @@
 @attribute [Authorize]
 @inject HttpClient Http
 @inject AuthService Auth
+@implements IDisposable
 
 <div class="container py-5 mt-4">
     <div class="row justify-content-center">
-        <div class="col-lg-9">
+        <div class="col-lg-11 col-xl-10">
 
             @if (isLoading)
             {
@@ -14,106 +15,254 @@
                     <p class="text-muted">@loadingMessage</p>
                 </div>
             }
-            else if (currentQuestion == null)
+            else if (isFinished)
             {
-                <!-- Topic Selection -->
-                <div class="glass-panel text-center animate__animated animate__fadeIn">
-                    <h1 class="display-5 fw-bold mb-1">Start an <span class="text-gradient">Interview</span></h1>
-                    <p class="text-muted mb-5">Choose a topic and let AI challenge you with 5 real questions.</p>
+                <!-- Summary Screen -->
+                <div class="glass-panel animate__animated animate__zoomIn text-center mb-4">
+                    <div class="finish-icon mb-3"></div>
+                    <h2 class="text-gradient fw-bold mb-1">Interview Complete!</h2>
+                    <p class="text-muted mb-4">Here's your session breakdown.</p>
 
-                    <div class="row g-3 mb-5">
-                        @foreach (var topic in topics)
+                    <div class="row g-3 mb-4">
+                        <div class="col-4">
+                            <div class="summary-stat">
+                                <div class="summary-stat__value text-gradient">@totalElapsed</div>
+                                <div class="summary-stat__label">Total Time</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="summary-stat">
+                                <div class="summary-stat__value text-white">@questionTimings.Count</div>
+                                <div class="summary-stat__label">Questions</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="summary-stat">
+                                <div class="summary-stat__value" style="color:#34d399">@(questionTimings.Any() ? FormatTime(questionTimings.Average(t => t.TotalSeconds)) : "0s")</div>
+                                <div class="summary-stat__label">Avg / Question</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="timing-breakdown mb-4">
+                        @for (int i = 0; i < questionTimings.Count; i++)
                         {
-                            <div class="col-md-4">
-                                <div class="topic-card @(selectedTopic == topic.Key ? "topic-card--active" : "")"
-                                     @onclick="() => selectedTopic = topic.Key">
-                                    <div class="topic-icon">@topic.Value.Icon</div>
-                                    <h5 class="mb-0 mt-2">@topic.Key</h5>
+                            var pct = totalSeconds > 0 ? (int)(questionTimings[i].TotalSeconds / totalSeconds * 100) : 0;
+                            <div class="timing-row">
+                                <span class="timing-label">Q@(i + 1)</span>
+                                <div class="timing-bar-wrap">
+                                    <div class="timing-bar-fill" style="width:@pct%"></div>
                                 </div>
+                                <span class="timing-value">@FormatTime(questionTimings[i].TotalSeconds)</span>
                             </div>
                         }
                     </div>
 
-                    @if (!string.IsNullOrEmpty(errorMessage))
-                    {
-                        <div class="alert-error mb-3">⚠ @errorMessage</div>
-                    }
-
-                    <button class="btn-neon btn-lg px-5" @onclick="StartNewInterview">
-                        Start Session →
-                    </button>
-                </div>
-            }
-            else if (isFinished)
-            {
-                <!-- Finished -->
-                <div class="glass-panel text-center animate__animated animate__zoomIn">
-                    <div class="finish-icon mb-3">🏆</div>
-                    <h2 class="text-gradient fw-bold mb-2">Interview Complete!</h2>
-                    <p class="text-muted mb-4">You've answered all 5 questions. Check your dashboard for the full breakdown.</p>
                     <div class="d-flex gap-3 justify-content-center">
                         <a href="/dashboard" class="btn-neon">View Results</a>
                         <button class="btn-outline" @onclick="ResetInterview">New Session</button>
                     </div>
                 </div>
             }
-            else
+            else if (currentQuestion == null)
             {
-                <!-- Question Panel -->
-                <div class="glass-panel animate__animated animate__fadeIn mb-4">
-                    <div class="d-flex align-items-center justify-content-between mb-4">
-                        <span class="topic-badge">@selectedTopic</span>
-                        <span class="question-counter">Question @questionNumber / 5</span>
-                    </div>
-
-                    <div class="progress-bar-wrap mb-4">
-                        <div class="progress-bar-fill" style="width: @(questionNumber * 20)%"></div>
-                    </div>
-
-                    <h3 class="fw-bold mb-4 question-text">@currentQuestion</h3>
-
-                    <textarea class="answer-input"
-                              @bind="userAnswer"
-                              @bind:event="oninput"
-                              placeholder="Type your answer here..."
-                              disabled="@(feedback != null)"></textarea>
-
-                    @if (!string.IsNullOrEmpty(errorMessage))
-                    {
-                        <div class="alert-error mt-2 mb-3">⚠ @errorMessage</div>
-                    }
-
-                    @if (feedback == null)
-                    {
-                        <div class="d-flex justify-content-between mt-4">
-                            <button class="btn-outline" @onclick="ResetInterview">Abort</button>
-                            <button class="btn-neon" @onclick="SubmitAnswer" disabled="@(string.IsNullOrWhiteSpace(userAnswer))">
-                                Submit Answer →
-                            </button>
-                        </div>
-                    }
-                </div>
-
-                <!-- Feedback Panel -->
-                @if (feedback != null)
+                <!-- Step 1: Topic + Level -->
+                @if (wizardStep == 1)
                 {
-                    <div class="glass-panel animate__animated animate__fadeInUp">
-                        <div class="d-flex align-items-center gap-4 mb-3">
-                            <div class="score-ring @GetScoreClass(score)">
-                                <span>@score</span>
+                    <div class="glass-panel animate__animated animate__fadeIn">
+                        <div class="wizard-header mb-4">
+                            <div class="wizard-steps">
+                                <div class="wizard-step wizard-step--active">1</div>
+                                <div class="wizard-step-line"></div>
+                                <div class="wizard-step">2</div>
                             </div>
-                            <div>
-                                <h5 class="fw-bold mb-1 text-white">AI Evaluation</h5>
-                                <p class="text-muted mb-0">@feedback</p>
-                            </div>
+                            <h1 class="display-6 fw-bold mt-3">Choose <span class="text-gradient">Topic & Level</span></h1>
+                            <p class="text-muted">Pick what you want to be tested on and how hard.</p>
                         </div>
+
+                        <h6 class="field-label mb-3">TOPIC</h6>
+                        <div class="row g-3 mb-5">
+                            @foreach (var topic in topics)
+                            {
+                                <div class="col-md-4">
+                                    <div class="topic-card @(selectedTopic == topic.Key ? "topic-card--active" : "")"
+                                         @onclick="() => selectedTopic = topic.Key">
+                                        <div class="topic-icon">@topic.Value.Icon</div>
+                                        <h6 class="mb-0 mt-2">@topic.Key</h6>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+
+                        <h6 class="field-label mb-3">DIFFICULTY LEVEL</h6>
+                        <div class="row g-3 mb-4">
+                            @foreach (var lvl in levels)
+                            {
+                                <div class="col-4">
+                                    <div class="level-card @(selectedLevel == lvl.Key ? "level-card--active level-card--" + lvl.Key.ToLower() : "")"
+                                         @onclick="() => selectedLevel = lvl.Key">
+                                        <div class="level-icon">@lvl.Value.Icon</div>
+                                        <div class="fw-semibold">@lvl.Key</div>
+                                        <div class="text-muted small">@lvl.Value.Desc</div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+
                         <div class="text-end">
-                            <button class="btn-neon" @onclick="LoadNextQuestion">
-                                Next Question →
+                            <button class="btn-neon px-5" @onclick="() => wizardStep = 2">
+                                Next →
                             </button>
                         </div>
                     </div>
                 }
+
+                <!-- Step 2: Context -->
+                @if (wizardStep == 2)
+                {
+                    <div class="glass-panel animate__animated animate__fadeIn">
+                        <div class="wizard-header mb-4">
+                            <div class="wizard-steps">
+                                <div class="wizard-step wizard-step--done" @onclick="() => wizardStep = 1">✓</div>
+                                <div class="wizard-step-line wizard-step-line--done"></div>
+                                <div class="wizard-step wizard-step--active">2</div>
+                            </div>
+                            <h1 class="display-6 fw-bold mt-3">Tell us <span class="text-gradient">About You</span></h1>
+                            <p class="text-muted">This helps the AI tailor questions to your situation.</p>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="field-label">TARGET ROLE</label>
+                            <input class="field-input" @bind="targetRole" placeholder="e.g. Backend Developer, Full Stack Engineer..." />
+                            <div class="chip-row mt-2">
+                                @foreach (var s in roleSuggestions)
+                                {
+                                    <span class="chip @(targetRole == s ? "chip--active" : "")" @onclick="() => targetRole = s">@s</span>
+                                }
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="field-label">INTERVIEW GOAL</label>
+                            <input class="field-input" @bind="interviewGoal" placeholder="e.g. Internship, Junior Dev, Senior Engineer..." />
+                            <div class="chip-row mt-2">
+                                @foreach (var s in goalSuggestions)
+                                {
+                                    <span class="chip @(interviewGoal == s ? "chip--active" : "")" @onclick="() => interviewGoal = s">@s</span>
+                                }
+                            </div>
+                        </div>
+
+                        <div class="mb-5">
+                            <label class="field-label">ADDITIONAL CONTEXT <span class="text-muted fw-normal">(optional)</span></label>
+                            <textarea class="field-input" style="min-height:80px;resize:vertical;" @bind="additionalContext"
+                                      placeholder="e.g. I have 2 years of experience, focusing on microservices..."></textarea>
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(errorMessage))
+                        {
+                            <div class="alert-error mb-3">⚠ @errorMessage</div>
+                        }
+
+                        <div class="d-flex justify-content-between">
+                            <button class="btn-outline" @onclick="() => wizardStep = 1">← Back</button>
+                            <button class="btn-neon px-5" @onclick="StartNewInterview"
+                                    disabled="@(string.IsNullOrWhiteSpace(targetRole) || string.IsNullOrWhiteSpace(interviewGoal))">
+                                Start Interview →
+                            </button>
+                        </div>
+                    </div>
+                }
+            }
+            else
+            {
+                <!-- Question Panel - Split Layout -->
+                <div class="interview-split animate__animated animate__fadeIn">
+
+                    <!-- LEFT: Question -->
+                    <div class="interview-split__question">
+                        <div class="d-flex align-items-center justify-content-between mb-3">
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="topic-badge">@selectedTopic</span>
+                                <span class="level-badge level-badge--@selectedLevel.ToLower()">@selectedLevel</span>
+                            </div>
+                            <span class="question-counter">@questionNumber / 5</span>
+                        </div>
+
+                        <div class="progress-bar-wrap mb-4">
+                            <div class="progress-bar-fill" style="width: @(questionNumber * 20)%"></div>
+                        </div>
+
+                        <h3 class="fw-bold mb-3 question-text">@currentQuestion</h3>
+
+                        <div class="mt-4 pt-3 border-top border-secondary">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <span class="text-muted small">Time on this question</span>
+                                <div class="question-timer @(questionSeconds > 120 ? "question-timer--warn" : "")">
+                                    ⏱ @FormatTime(questionSeconds)
+                                </div>
+                            </div>
+                        </div>
+
+                        @if (feedback == null)
+                        {
+                            <div class="mt-3">
+                                <button class="btn-outline w-100" @onclick="ResetInterview">Abort Session</button>
+                            </div>
+                        }
+                    </div>
+
+                    <!-- RIGHT: Answer + Feedback -->
+                    <div class="interview-split__answer">
+                        @if (feedback == null)
+                        {
+                            <h6 class="field-label mb-2">YOUR ANSWER</h6>
+                            <textarea class="answer-input w-100 mb-3"
+                                      style="min-height: 260px;"
+                                      @bind="userAnswer"
+                                      @bind:event="oninput"
+                                      placeholder="Type your answer here..."></textarea>
+
+                            @if (!string.IsNullOrEmpty(errorMessage))
+                            {
+                                <div class="alert-error mb-3">⚠ @errorMessage</div>
+                            }
+
+                            <button class="btn-neon w-100" @onclick="SubmitAnswer"
+                                    disabled="@(string.IsNullOrWhiteSpace(userAnswer))">
+                                Submit Answer →
+                            </button>
+                        }
+                        else
+                        {
+                            <!-- Feedback -->
+                            <div class="d-flex align-items-center gap-3 mb-4">
+                                <div class="score-ring @GetScoreClass(score)">
+                                    <span>@score</span>
+                                </div>
+                                <div>
+                                    <h5 class="fw-bold mb-1" style="color:#f1f5f9">AI Evaluation</h5>
+                                    <p class="mb-0" style="color:#94a3b8;font-size:0.9rem;">@feedback</p>
+                                </div>
+                            </div>
+
+                            <div class="border-top border-secondary pt-3 mb-4">
+                                <h6 class="field-label mb-2">YOUR ANSWER</h6>
+                                <p style="color:#94a3b8;font-size:0.9rem;line-height:1.6;">@userAnswer</p>
+                            </div>
+
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span style="color:#64748b;font-size:0.8rem;">
+                                    Time: @FormatTime(questionTimings.LastOrDefault().TotalSeconds)
+                                </span>
+                                <button class="btn-neon" @onclick="LoadNextQuestion">
+                                    @(questionNumber >= 5 ? "See Results →" : "Next Question →")
+                                </button>
+                            </div>
+                        }
+                    </div>
+
+                </div>
             }
 
         </div>
@@ -121,34 +270,81 @@
 </div>
 
 @code {
+    // Wizard
+    private int wizardStep = 1;
     private string selectedTopic = ".NET";
+    private string selectedLevel = "Intermediate";
+    private string targetRole = "";
+    private string interviewGoal = "";
+    private string? additionalContext;
+
+    // Session
     private string? currentQuestion;
-    private int questionId;
-    private int sessionId;
+    private int questionId, sessionId, questionNumber = 1, userId;
     private string userAnswer = "";
     private string? feedback;
     private int score;
-    private bool isLoading = false;
-    private bool isFinished = false;
+    private bool isLoading, isFinished;
     private string loadingMessage = "Loading...";
     private string? errorMessage;
-    private int questionNumber = 1;
-    private int userId;
+
+    // Timer
+    private System.Threading.Timer? _timer;
+    private int questionSeconds = 0;
+    private List<TimeSpan> questionTimings = new();
+    private double totalSeconds => questionTimings.Sum(t => t.TotalSeconds);
+    private string totalElapsed => FormatTime(totalSeconds);
 
     private record TopicInfo(string Name, string Icon);
     private Dictionary<string, TopicInfo> topics = new()
     {
-        [".NET"] = new(".NET", "🔷"),
-        ["SQL"] = new("SQL", "🗄️"),
-        ["DevOps"] = new("DevOps", "⚙️"),
-        ["System Design"] = new("System Design", "🏗️"),
-        ["JavaScript"] = new("JavaScript", "🟨"),
-        ["React"] = new("React", "⚛️"),
+        [".NET"]           = new(".NET", ""),
+        ["SQL"]            = new("SQL", ""),
+        ["DevOps"]         = new("DevOps", ""),
+        ["System Design"]  = new("System Design", ""),
+        ["JavaScript"]     = new("JavaScript", ""),
+        ["React"]          = new("React", ""),
     };
+
+    private record LevelInfo(string Icon, string Desc);
+    private Dictionary<string, LevelInfo> levels = new()
+    {
+        ["Beginner"]     = new("", "Foundational concepts"),
+        ["Intermediate"] = new("", "Real-world scenarios"),
+        ["Pro"]          = new("", "Deep expertise"),
+    };
+
+    private string[] roleSuggestions = ["Backend Developer", "Full Stack Developer", "Frontend Developer", "DevOps Engineer", "Data Engineer", "Software Architect"];
+    private string[] goalSuggestions = ["Internship", "Junior Developer", "Mid-level Developer", "Senior Developer", "Tech Lead"];
 
     protected override async Task OnInitializedAsync()
     {
+        await Auth.GetAuthenticationStateAsync();
         userId = await Auth.GetUserIdAsync();
+    }
+
+    private void StartTimer()
+    {
+        questionSeconds = 0;
+        _timer?.Dispose();
+        _timer = new System.Threading.Timer(_ =>
+        {
+            questionSeconds++;
+            InvokeAsync(StateHasChanged);
+        }, null, 1000, 1000);
+    }
+
+    private void StopTimer()
+    {
+        _timer?.Dispose();
+        _timer = null;
+        questionTimings.Add(TimeSpan.FromSeconds(questionSeconds));
+    }
+
+    private static string FormatTime(double seconds)
+    {
+        var ts = TimeSpan.FromSeconds((int)seconds);
+        return ts.TotalMinutes >= 1 ? $"{(int)ts.TotalMinutes}m {ts.Seconds}s" : $"{ts.Seconds}s";
     }
 
     private async Task StartNewInterview()
@@ -159,7 +355,15 @@
 
         try
         {
-            var request = new { UserId = userId, InterviewType = selectedTopic };
+            var request = new
+            {
+                UserId = userId,
+                InterviewType = selectedTopic,
+                Level = selectedLevel,
+                TargetRole = targetRole,
+                InterviewGoal = interviewGoal,
+                AdditionalContext = additionalContext
+            };
             var response = await Http.PostAsJsonAsync("api/interviews/start", request);
 
             if (response.IsSuccessStatusCode)
@@ -173,20 +377,17 @@
                     questionNumber = 1;
                     userAnswer = "";
                     feedback = null;
+                    questionTimings.Clear();
+                    StartTimer();
                 }
             }
             else
             {
                 var body = await response.Content.ReadAsStringAsync();
-                errorMessage = body.Contains("insufficient_quota")
-                    ? "OpenAI quota exceeded. Please check your API billing."
-                    : "Failed to start session. Please try again.";
+                errorMessage = $"Error {(int)response.StatusCode}: {body}";
             }
         }
-        catch
-        {
-            errorMessage = "Could not connect to server.";
-        }
+        catch { errorMessage = "Could not connect to server."; }
 
         isLoading = false;
     }
@@ -195,6 +396,7 @@
     {
         if (string.IsNullOrWhiteSpace(userAnswer)) return;
 
+        StopTimer();
         errorMessage = null;
         isLoading = true;
         loadingMessage = "Evaluating your answer...";
@@ -210,15 +412,9 @@
                 feedback = result?.Feedback ?? "No feedback available.";
                 score = result?.Score ?? 0;
             }
-            else
-            {
-                errorMessage = "Failed to submit answer. Please try again.";
-            }
+            else { errorMessage = "Failed to submit answer. Please try again."; }
         }
-        catch
-        {
-            errorMessage = "Could not connect to server.";
-        }
+        catch { errorMessage = "Could not connect to server."; }
 
         isLoading = false;
     }
@@ -246,55 +442,35 @@
                     questionNumber++;
                     userAnswer = "";
                     feedback = null;
+                    StartTimer();
                 }
             }
-            else
-            {
-                errorMessage = "Failed to load next question.";
-            }
+            else { errorMessage = "Failed to load next question."; }
         }
-        catch
-        {
-            errorMessage = "Could not connect to server.";
-        }
+        catch { errorMessage = "Could not connect to server."; }
 
         isLoading = false;
     }
 
     private void ResetInterview()
     {
+        _timer?.Dispose();
         currentQuestion = null;
         feedback = null;
         userAnswer = "";
         isFinished = false;
         errorMessage = null;
         questionNumber = 1;
+        wizardStep = 1;
+        questionTimings.Clear();
+        questionSeconds = 0;
     }
 
-    private string GetScoreClass(int s) => s switch
-    {
-        >= 80 => "score-ring--high",
-        >= 50 => "score-ring--mid",
-        _ => "score-ring--low"
-    };
+    private string GetScoreClass(int s) => s switch { >= 80 => "score-ring--high", >= 50 => "score-ring--mid", _ => "score-ring--low" };
 
-    public class StartResponse
-    {
-        public int SessionId { get; set; }
-        public int QuestionId { get; set; }
-        public string? FirstQuestion { get; set; }
-    }
+    public void Dispose() => _timer?.Dispose();
 
-    public class EvaluationResponse
-    {
-        public string? Feedback { get; set; }
-        public int Score { get; set; }
-    }
-
-    public class NextQuestionResponse
-    {
-        public bool Finished { get; set; }
-        public int QuestionId { get; set; }
-        public string? QuestionText { get; set; }
-    }
+    public class StartResponse { public int SessionId { get; set; } public int QuestionId { get; set; } public string? FirstQuestion { get; set; } }
+    public class EvaluationResponse { public string? Feedback { get; set; } public int Score { get; set; } }
+    public class NextQuestionResponse { public bool Finished { get; set; } public int QuestionId { get; set; } public string? QuestionText { get; set; } }
 }

@@ -25,6 +25,36 @@ namespace PrepWise.API.Controllers
         }
 
         
+        [HttpDelete("{sessionId}")]
+        public async Task<IActionResult> DeleteSession(int sessionId)
+        {
+            var session = await _context.InterviewSessions
+                .Include(s => s.Questions)
+                .FirstOrDefaultAsync(s => s.Id == sessionId);
+
+            if (session == null) return NotFound("Session not found.");
+
+            _context.InterviewSessions.Remove(session);
+            await _context.SaveChangesAsync();
+
+            return NoContent();
+        }
+
+        [AllowAnonymous]
+        [HttpGet("test-ai")]
+        public async Task<IActionResult> TestAI()
+        {
+            try
+            {
+                var question = await _aiService.GenerateQuestionAsync(".NET");
+                return Ok(new { success = true, question });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { success = false, error = ex.Message });
+            }
+        }
+
         [HttpGet("history/{userId}")]
         public async Task<IActionResult> GetHistory(int userId)
         {
@@ -49,23 +79,27 @@ namespace PrepWise.API.Controllers
             string firstQuestionText;
             try
             {
-                firstQuestionText = await _aiService.GenerateQuestionAsync(request.InterviewType);
+                firstQuestionText = await _aiService.GenerateQuestionAsync(
+                    request.InterviewType, request.Level, request.TargetRole,
+                    request.InterviewGoal, request.AdditionalContext);
             }
             catch (Exception ex)
             {
                 return StatusCode(502, new { error = "AI service failed", detail = ex.Message });
             }
 
-            // 2. Create the Session
             var newSession = new InterviewSession
             {
                 UserId = request.UserId,
                 InterviewType = request.InterviewType,
+                Level = request.Level,
+                TargetRole = request.TargetRole,
+                InterviewGoal = request.InterviewGoal,
+                AdditionalContext = request.AdditionalContext,
                 DateCreated = DateTime.UtcNow
             };
 
-            // 3. Add the first question to the session
-            newSession.Questions.Add(new Question { Content = firstQuestionText });
+            newSession.Questions.Add(new Question { Content = firstQuestionText, UserId = request.UserId });
 
             _context.InterviewSessions.Add(newSession);
             await _context.SaveChangesAsync();
@@ -117,9 +151,11 @@ namespace PrepWise.API.Controllers
                 return Ok(new { Finished = true, Message = "Interview Complete!" });
 
             // Generate a new question from AI
-            var nextQuestionText = await _aiService.GenerateQuestionAsync(session.InterviewType);
+            var nextQuestionText = await _aiService.GenerateQuestionAsync(
+                session.InterviewType, session.Level, session.TargetRole,
+                session.InterviewGoal, session.AdditionalContext);
 
-            var newQuestion = new Question { Content = nextQuestionText, InterviewSessionId = sessionId };
+            var newQuestion = new Question { Content = nextQuestionText, InterviewSessionId = sessionId, UserId = session.UserId };
             _context.Questions.Add(newQuestion);
             await _context.SaveChangesAsync();
 

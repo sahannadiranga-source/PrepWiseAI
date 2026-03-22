@@ -4,6 +4,9 @@
     {
         public int Id { get; set; }
         public string InterviewType { get; set; } = string.Empty;
+        public string Level { get; set; } = string.Empty;
+        public string TargetRole { get; set; } = string.Empty;
+        public string InterviewGoal { get; set; } = string.Empty;
         public DateTime DateCreated { get; set; }
         public List<Question> Questions { get; set; } = new();
     }
