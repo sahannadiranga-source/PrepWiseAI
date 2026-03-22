@@ -37,6 +37,9 @@ namespace PrepWise.API.Services
             var response = await _httpClient.SendAsync(request);
             var responseString = await response.Content.ReadAsStringAsync();
 
+            if (!response.IsSuccessStatusCode)
+                throw new Exception($"OpenAI error {(int)response.StatusCode}: {responseString}");
+
             using var doc = JsonDocument.Parse(responseString);
             return doc.RootElement.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString() ?? "Error generating question.";
         }

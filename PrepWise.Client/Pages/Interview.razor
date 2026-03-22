@@ -1,0 +1,300 @@
+﻿@page "/interview"
+@attribute [Authorize]
+@inject HttpClient Http
+@inject AuthService Auth
+
+<div class="container py-5 mt-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-9">
+
+            @if (isLoading)
+            {
+                <div class="glass-panel text-center py-5">
+                    <div class="spinner-border text-info mb-3" style="width:3rem;height:3rem;"></div>
+                    <p class="text-muted">@loadingMessage</p>
+                </div>
+            }
+            else if (currentQuestion == null)
+            {
+                <!-- Topic Selection -->
+                <div class="glass-panel text-center animate__animated animate__fadeIn">
+                    <h1 class="display-5 fw-bold mb-1">Start an <span class="text-gradient">Interview</span></h1>
+                    <p class="text-muted mb-5">Choose a topic and let AI challenge you with 5 real questions.</p>
+
+                    <div class="row g-3 mb-5">
+                        @foreach (var topic in topics)
+                        {
+                            <div class="col-md-4">
+                                <div class="topic-card @(selectedTopic == topic.Key ? "topic-card--active" : "")"
+                                     @onclick="() => selectedTopic = topic.Key">
+                                    <div class="topic-icon">@topic.Value.Icon</div>
+                                    <h5 class="mb-0 mt-2">@topic.Key</h5>
+                                </div>
+                            </div>
+                        }
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(errorMessage))
+                    {
+                        <div class="alert-error mb-3">⚠ @errorMessage</div>
+                    }
+
+                    <button class="btn-neon btn-lg px-5" @onclick="StartNewInterview">
+                        Start Session →
+                    </button>
+                </div>
+            }
+            else if (isFinished)
+            {
+                <!-- Finished -->
+                <div class="glass-panel text-center animate__animated animate__zoomIn">
+                    <div class="finish-icon mb-3">🏆</div>
+                    <h2 class="text-gradient fw-bold mb-2">Interview Complete!</h2>
+                    <p class="text-muted mb-4">You've answered all 5 questions. Check your dashboard for the full breakdown.</p>
+                    <div class="d-flex gap-3 justify-content-center">
+                        <a href="/dashboard" class="btn-neon">View Results</a>
+                        <button class="btn-outline" @onclick="ResetInterview">New Session</button>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <!-- Question Panel -->
+                <div class="glass-panel animate__animated animate__fadeIn mb-4">
+                    <div class="d-flex align-items-center justify-content-between mb-4">
+                        <span class="topic-badge">@selectedTopic</span>
+                        <span class="question-counter">Question @questionNumber / 5</span>
+                    </div>
+
+                    <div class="progress-bar-wrap mb-4">
+                        <div class="progress-bar-fill" style="width: @(questionNumber * 20)%"></div>
+                    </div>
+
+                    <h3 class="fw-bold mb-4 question-text">@currentQuestion</h3>
+
+                    <textarea class="answer-input"
+                              @bind="userAnswer"
+                              @bind:event="oninput"
+                              placeholder="Type your answer here..."
+                              disabled="@(feedback != null)"></textarea>
+
+                    @if (!string.IsNullOrEmpty(errorMessage))
+                    {
+                        <div class="alert-error mt-2 mb-3">⚠ @errorMessage</div>
+                    }
+
+                    @if (feedback == null)
+                    {
+                        <div class="d-flex justify-content-between mt-4">
+                            <button class="btn-outline" @onclick="ResetInterview">Abort</button>
+                            <button class="btn-neon" @onclick="SubmitAnswer" disabled="@(string.IsNullOrWhiteSpace(userAnswer))">
+                                Submit Answer →
+                            </button>
+                        </div>
+                    }
+                </div>
+
+                <!-- Feedback Panel -->
+                @if (feedback != null)
+                {
+                    <div class="glass-panel animate__animated animate__fadeInUp">
+                        <div class="d-flex align-items-center gap-4 mb-3">
+                            <div class="score-ring @GetScoreClass(score)">
+                                <span>@score</span>
+                            </div>
+                            <div>
+                                <h5 class="fw-bold mb-1 text-white">AI Evaluation</h5>
+                                <p class="text-muted mb-0">@feedback</p>
+                            </div>
+                        </div>
+                        <div class="text-end">
+                            <button class="btn-neon" @onclick="LoadNextQuestion">
+                                Next Question →
+                            </button>
+                        </div>
+                    </div>
+                }
+            }
+
+        </div>
+    </div>
+</div>
+
+@code {
+    private string selectedTopic = ".NET";
+    private string? currentQuestion;
+    private int questionId;
+    private int sessionId;
+    private string userAnswer = "";
+    private string? feedback;
+    private int score;
+    private bool isLoading = false;
+    private bool isFinished = false;
+    private string loadingMessage = "Loading...";
+    private string? errorMessage;
+    private int questionNumber = 1;
+    private int userId;
+
+    private record TopicInfo(string Name, string Icon);
+    private Dictionary<string, TopicInfo> topics = new()
+    {
+        [".NET"] = new(".NET", "🔷"),
+        ["SQL"] = new("SQL", "🗄️"),
+        ["DevOps"] = new("DevOps", "⚙️"),
+        ["System Design"] = new("System Design", "🏗️"),
+        ["JavaScript"] = new("JavaScript", "🟨"),
+        ["React"] = new("React", "⚛️"),
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        userId = await Auth.GetUserIdAsync();
+    }
+
+    private async Task StartNewInterview()
+    {
+        errorMessage = null;
+        isLoading = true;
+        loadingMessage = "Generating your first question...";
+
+        try
+        {
+            var request = new { UserId = userId, InterviewType = selectedTopic };
+            var response = await Http.PostAsJsonAsync("api/interviews/start", request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<StartResponse>();
+                if (result != null)
+                {
+                    currentQuestion = result.FirstQuestion;
+                    questionId = result.QuestionId;
+                    sessionId = result.SessionId;
+                    questionNumber = 1;
+                    userAnswer = "";
+                    feedback = null;
+                }
+            }
+            else
+            {
+                var body = await response.Content.ReadAsStringAsync();
+                errorMessage = body.Contains("insufficient_quota")
+                    ? "OpenAI quota exceeded. Please check your API billing."
+                    : "Failed to start session. Please try again.";
+            }
+        }
+        catch
+        {
+            errorMessage = "Could not connect to server.";
+        }
+
+        isLoading = false;
+    }
+
+    private async Task SubmitAnswer()
+    {
+        if (string.IsNullOrWhiteSpace(userAnswer)) return;
+
+        errorMessage = null;
+        isLoading = true;
+        loadingMessage = "Evaluating your answer...";
+
+        try
+        {
+            var request = new { QuestionId = questionId, UserAnswer = userAnswer };
+            var response = await Http.PostAsJsonAsync("api/interviews/submit-answer", request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<EvaluationResponse>();
+                feedback = result?.Feedback ?? "No feedback available.";
+                score = result?.Score ?? 0;
+            }
+            else
+            {
+                errorMessage = "Failed to submit answer. Please try again.";
+            }
+        }
+        catch
+        {
+            errorMessage = "Could not connect to server.";
+        }
+
+        isLoading = false;
+    }
+
+    private async Task LoadNextQuestion()
+    {
+        errorMessage = null;
+        isLoading = true;
+        loadingMessage = "Generating next question...";
+
+        try
+        {
+            var response = await Http.PostAsync($"api/interviews/{sessionId}/next-question", null);
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<NextQuestionResponse>();
+                if (result!.Finished)
+                {
+                    isFinished = true;
+                }
+                else
+                {
+                    currentQuestion = result.QuestionText;
+                    questionId = result.QuestionId;
+                    questionNumber++;
+                    userAnswer = "";
+                    feedback = null;
+                }
+            }
+            else
+            {
+                errorMessage = "Failed to load next question.";
+            }
+        }
+        catch
+        {
+            errorMessage = "Could not connect to server.";
+        }
+
+        isLoading = false;
+    }
+
+    private void ResetInterview()
+    {
+        currentQuestion = null;
+        feedback = null;
+        userAnswer = "";
+        isFinished = false;
+        errorMessage = null;
+        questionNumber = 1;
+    }
+
+    private string GetScoreClass(int s) => s switch
+    {
+        >= 80 => "score-ring--high",
+        >= 50 => "score-ring--mid",
+        _ => "score-ring--low"
+    };
+
+    public class StartResponse
+    {
+        public int SessionId { get; set; }
+        public int QuestionId { get; set; }
+        public string? FirstQuestion { get; set; }
+    }
+
+    public class EvaluationResponse
+    {
+        public string? Feedback { get; set; }
+        public int Score { get; set; }
+    }
+
+    public class NextQuestionResponse
+    {
+        public bool Finished { get; set; }
+        public int QuestionId { get; set; }
+        public string? QuestionText { get; set; }
+    }
+}

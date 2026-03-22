@@ -24,14 +24,37 @@ namespace PrepWise.API.Controllers
             _aiService = aiService;
         }
 
+        
+        [HttpGet("history/{userId}")]
+        public async Task<IActionResult> GetHistory(int userId)
+        {
+            var history = await _context.InterviewSessions
+                .Where(s => s.UserId == userId)
+                .Include(s => s.Questions) // This is crucial to see the scores!
+                .OrderByDescending(s => s.DateCreated)
+                .ToListAsync();
+
+            if (history == null || !history.Any())
+                return NotFound("No interview history found for this user.");
+
+            return Ok(history);
+        }
+
         [HttpPost("start")]
         public async Task<IActionResult> StartInterview([FromBody] StartInterviewRequest request)
         {
             var user = await _context.Users.FindAsync(request.UserId);
             if (user == null) return BadRequest("User not found.");
 
-            // 1. Generate the first question via AI
-            var firstQuestionText = await _aiService.GenerateQuestionAsync(request.InterviewType);
+            string firstQuestionText;
+            try
+            {
+                firstQuestionText = await _aiService.GenerateQuestionAsync(request.InterviewType);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(502, new { error = "AI service failed", detail = ex.Message });
+            }
 
             // 2. Create the Session
             var newSession = new InterviewSession
@@ -47,9 +70,11 @@ namespace PrepWise.API.Controllers
             _context.InterviewSessions.Add(newSession);
             await _context.SaveChangesAsync();
 
+            var firstQuestion = newSession.Questions.First();
             return Ok(new
             {
                 SessionId = newSession.Id,
+                QuestionId = firstQuestion.Id,
                 FirstQuestion = firstQuestionText
             });
         }
@@ -76,6 +101,29 @@ namespace PrepWise.API.Controllers
                 Feedback = question.Feedback,
                 Score = question.Score
             });
+        }
+
+        [HttpPost("{sessionId}/next-question")]
+        public async Task<IActionResult> GetNextQuestion(int sessionId)
+        {
+            var session = await _context.InterviewSessions
+                .Include(s => s.Questions)
+                .FirstOrDefaultAsync(s => s.Id == sessionId);
+
+            if (session == null) return NotFound("Session not found.");
+
+            // Limit to 5 questions per session for now
+            if (session.Questions.Count >= 5)
+                return Ok(new { Finished = true, Message = "Interview Complete!" });
+
+            // Generate a new question from AI
+            var nextQuestionText = await _aiService.GenerateQuestionAsync(session.InterviewType);
+
+            var newQuestion = new Question { Content = nextQuestionText, InterviewSessionId = sessionId };
+            _context.Questions.Add(newQuestion);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { Finished = false, QuestionId = newQuestion.Id, QuestionText = nextQuestionText });
         }
 
     }

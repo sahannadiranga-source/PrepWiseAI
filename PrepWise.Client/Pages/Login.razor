@@ -1,0 +1,94 @@
+﻿@page "/login"
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject AuthService Auth
+
+<div class="auth-bg d-flex align-items-center justify-content-center">
+    <div class="auth-card animate__animated animate__fadeInDown">
+        <div class="text-center mb-4">
+            <div class="brand-logo mb-3">
+                <span class="logo-icon">⚡</span>
+            </div>
+            <h2 class="fw-bold text-white mb-1">Welcome <span class="text-gradient">Back</span></h2>
+            <p class="text-muted small">Sign in to continue your prep journey</p>
+        </div>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert-error mb-3">
+                <span>⚠</span> @errorMessage
+            </div>
+        }
+
+        <div class="mb-3">
+            <label class="field-label">EMAIL ADDRESS</label>
+            <input type="email" class="field-input" @bind="loginData.Email" placeholder="you@example.com" />
+        </div>
+
+        <div class="mb-4">
+            <label class="field-label">PASSWORD</label>
+            <input type="password" class="field-input" @bind="loginData.PasswordHash" placeholder="••••••••" />
+        </div>
+
+        <button class="btn-primary-full" @onclick="HandleLogin" disabled="@isBusy">
+            @if (isBusy)
+            {
+                <span class="spinner-border spinner-border-sm me-2"></span>
+            }
+            Sign In
+        </button>
+
+        <div class="text-center mt-3">
+            <p class="text-muted small">Don't have an account? <a href="/register" class="link-accent">Create one</a></p>
+        </div>
+    </div>
+</div>
+
+@code {
+    private LoginRequest loginData = new();
+    private string? errorMessage;
+    private bool isBusy = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await Auth.GetAuthenticationStateAsync();
+        if (state.User.Identity?.IsAuthenticated == true)
+            Navigation.NavigateTo("/dashboard");
+    }
+
+    private async Task HandleLogin()
+    {
+        if (string.IsNullOrWhiteSpace(loginData.Email) || string.IsNullOrWhiteSpace(loginData.PasswordHash))
+        {
+            errorMessage = "Please fill in all fields.";
+            return;
+        }
+
+        isBusy = true;
+        errorMessage = null;
+
+        try
+        {
+            var response = await Http.PostAsJsonAsync("api/auth/login", loginData);
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<LoginResponse>();
+                if (result != null)
+                {
+                    await Auth.LoginAsync(result.Token, result.UserId, result.Email);
+                    Navigation.NavigateTo("/dashboard");
+                }
+            }
+            else
+            {
+                errorMessage = "Invalid email or password.";
+            }
+        }
+        catch
+        {
+            errorMessage = "Could not connect to server. Please try again.";
+        }
+
+        isBusy = false;
+    }
+}
