@@ -35,13 +35,21 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 builder.Services.AddCors(options =>
 {
+    var blazorOrigin = builder.Configuration["CorsOrigins:Blazor"] ?? "https://localhost:7189";
     options.AddPolicy("AllowBlazor", policy =>
-        policy.WithOrigins("https://localhost:7189") // Your Blazor App's URL
+        policy.WithOrigins(blazorOrigin)
               .AllowAnyMethod()
               .AllowAnyHeader());
 });
 
 var app = builder.Build();
+
+// Auto-migrate on startup (safe for both local and Docker)
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.Migrate();
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

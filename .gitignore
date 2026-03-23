@@ -3,3 +3,4 @@ bin/
 obj/
 *.user
 PrepWise.API/appsettings.json
+.env
