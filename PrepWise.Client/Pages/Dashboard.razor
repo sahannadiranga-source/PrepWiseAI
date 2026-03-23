@@ -1,0 +1,308 @@
+﻿@page "/dashboard"
+@attribute [Authorize]
+@inject HttpClient Http
+@inject AuthService Auth
+@inject NavigationManager Nav
+
+<div class="container py-5 mt-4">
+    <div class="d-flex justify-content-between align-items-end mb-5">
+        <div>
+            <h1 class="display-5 fw-bold" style="color:#f1f5f9">Performance <span class="text-gradient">Analytics</span></h1>
+            <p style="color:#94a3b8">Track your progress across all interview categories.</p>
+        </div>
+        <a href="/interview" class="btn-neon">+ New Session</a>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-info" style="width:2.5rem;height:2.5rem;"></div>
+        </div>
+    }
+    else
+    {
+        <div class="row g-4 mb-5">
+            <div class="col-md-4">
+                <div class="stat-card">
+                    <p class="stat-label">Total Sessions</p>
+                    <h2 class="stat-value" style="color:#f1f5f9">@pastSessions.Count</h2>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="stat-card">
+                    <p class="stat-label">Average Score</p>
+                    <h2 class="stat-value text-gradient">@AverageScore%</h2>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="stat-card">
+                    <p class="stat-label">Questions Answered</p>
+                    <h2 class="stat-value" style="color:#f1f5f9">@TotalQuestions</h2>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sessions Table -->
+        <div class="glass-panel p-0 overflow-hidden mb-4">
+            <div class="p-4 border-bottom border-secondary d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-bold" style="color:#f1f5f9">Recent Sessions</h5>
+                <span style="color:#64748b;font-size:0.85rem">@pastSessions.Count total</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-dark table-hover mb-0">
+                    <thead>
+                        <tr style="color:#64748b;font-size:0.75rem;letter-spacing:0.5px">
+                            <th class="ps-4 py-3 fw-normal">DATE</th>
+                            <th class="py-3 fw-normal">CATEGORY</th>
+                            <th class="py-3 fw-normal">LEVEL</th>
+                            <th class="py-3 text-center fw-normal">AVG SCORE</th>
+                            <th class="py-3 text-center fw-normal">QUESTIONS</th>
+                            <th class="py-3 text-center fw-normal">STATUS</th>
+                            <th class="py-3 fw-normal"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (!pastSessions.Any())
+                        {
+                            <tr>
+                                <td colspan="7" class="text-center py-5" style="color:#64748b">
+                                    No sessions yet. <a href="/interview" class="link-accent">Start your first interview!</a>
+                                </td>
+                            </tr>
+                        }
+                        @foreach (var session in pastSessions)
+                        {
+                            var avg = session.Questions.Any() ? (int)session.Questions.Average(q => q.Score) : 0;
+                            var isComplete = session.Questions.Count >= 5;
+                            var isExpanded = expandedSessionId == session.Id;
+                            <tr class="session-row @(isExpanded ? "session-row--active" : "")"
+                                style="cursor:pointer" @onclick="() => ToggleSession(session.Id)">
+                                <td class="ps-4 py-3" style="color:#e2e8f0">@session.DateCreated.ToLocalTime().ToString("MMM dd, yyyy")</td>
+                                <td class="py-3"><span class="category-badge">@session.InterviewType</span></td>
+                                <td class="py-3">
+                                    @if (!string.IsNullOrEmpty(session.Level))
+                                    {
+                                        <span class="level-badge level-badge--@session.Level.ToLower()">@session.Level</span>
+                                    }
+                                </td>
+                                <td class="py-3 text-center fw-bold @GetScoreColor(avg)">@avg%</td>
+                                <td class="py-3 text-center" style="color:#94a3b8">@session.Questions.Count / 5</td>
+                                <td class="py-3 text-center">
+                                    @if (isComplete)
+                                    {
+                                        <span class="status-badge">Completed</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="status-badge status-badge--partial">Not Completed</span>
+                                    }
+                                </td>
+                                <td class="py-3 pe-3 text-end" @onclick:stopPropagation="true">
+                                    <button class="btn-delete" @onclick="() => DeleteSession(session.Id)"
+                                            disabled="@(deletingId == session.Id)">
+                                        @if (deletingId == session.Id)
+                                        { <span class="spinner-border spinner-border-sm"></span> }
+                                        else
+                                        { <span>✕</span> }
+                                    </button>
+                                </td>
+                            </tr>
+
+                            @if (isExpanded && session.Questions.Any())
+                            {
+                                <tr class="session-detail-row">
+                                    <td colspan="7" class="p-0">
+                                        <div class="session-detail animate__animated animate__fadeIn">
+                                            <div class="session-detail__meta mb-3">
+                                                @if (!string.IsNullOrEmpty(session.TargetRole))
+                                                { <span class="detail-chip">🎯 @session.TargetRole</span> }
+                                                @if (!string.IsNullOrEmpty(session.InterviewGoal))
+                                                { <span class="detail-chip">📌 @session.InterviewGoal</span> }
+                                                @if (!string.IsNullOrEmpty(session.ExperienceLevel))
+                                                { <span class="detail-chip">👤 @session.ExperienceLevel</span> }
+                                                @if (!string.IsNullOrEmpty(session.Mode))
+                                                { <span class="detail-chip">⚙ @session.Mode</span> }
+                                            </div>
+
+                                            @if (session.Analytics != null)
+                                            {
+                                                <div class="analytics-summary mb-4">
+                                                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+                                                        <div class="analytics-summary__score">
+                                                            <span class="@GetScoreColor(session.Analytics.OverallScore)" style="font-size:1.8rem;font-weight:800">@session.Analytics.OverallScore%</span>
+                                                            <span class="text-muted small ms-2">Overall Score</span>
+                                                        </div>
+                                                        @if (!string.IsNullOrEmpty(session.Analytics.WeakTopics))
+                                                        {
+                                                            <a href="@GetRetakeUrl(session)" class="btn-retake">
+                                                                🔁 Retake Weak Areas
+                                                            </a>
+                                                        }
+                                                    </div>
+                                                    @if (!string.IsNullOrEmpty(session.Analytics.WeakTopics))
+                                                    {
+                                                        <div class="mb-2">
+                                                            <span class="field-label">WEAK TOPICS: </span>
+                                                            @foreach (var t in session.Analytics.WeakTopics.Split(','))
+                                                            {
+                                                                <span class="chip" style="border-color:rgba(248,113,113,0.4);color:#f87171;background:rgba(248,113,113,0.08)">@t.Trim()</span>
+                                                            }
+                                                        </div>
+                                                    }
+                                                    <div class="row g-2 mt-1">
+                                                        @if (!string.IsNullOrEmpty(session.Analytics.Strengths))
+                                                        {
+                                                            <div class="col-md-4">
+                                                                <div class="analytics-block analytics-block--green">
+                                                                    <div class="analytics-block__label">💪 STRENGTHS</div>
+                                                                    <p class="analytics-block__text">@session.Analytics.Strengths</p>
+                                                                </div>
+                                                            </div>
+                                                        }
+                                                        @if (!string.IsNullOrEmpty(session.Analytics.Weaknesses))
+                                                        {
+                                                            <div class="col-md-4">
+                                                                <div class="analytics-block analytics-block--red">
+                                                                    <div class="analytics-block__label">⚠ WEAKNESSES</div>
+                                                                    <p class="analytics-block__text">@session.Analytics.Weaknesses</p>
+                                                                </div>
+                                                            </div>
+                                                        }
+                                                        @if (!string.IsNullOrEmpty(session.Analytics.Recommendations))
+                                                        {
+                                                            <div class="col-md-4">
+                                                                <div class="analytics-block analytics-block--blue">
+                                                                    <div class="analytics-block__label">📌 RECOMMENDATIONS</div>
+                                                                    <p class="analytics-block__text">@session.Analytics.Recommendations</p>
+                                                                </div>
+                                                            </div>
+                                                        }
+                                                    </div>
+                                                </div>
+                                            }
+
+                                            @for (int i = 0; i < session.Questions.Count; i++)
+                                            {
+                                                var q = session.Questions[i];
+                                                var qi = i;
+                                                <div class="qa-card mb-3">
+                                                    <div class="qa-card__header">
+                                                        <span class="qa-q-num">Q@(qi + 1)</span>
+                                                        <p class="qa-question mb-0">@q.Content</p>
+                                                        @if (q.Score > 0)
+                                                        { <span class="qa-score @GetScoreColor(q.Score)">@q.Score%</span> }
+                                                    </div>
+                                                    @if (!string.IsNullOrEmpty(q.UserAnswer))
+                                                    {
+                                                        <div class="qa-card__body">
+                                                            <div class="qa-answer-label">YOUR ANSWER</div>
+                                                            <p class="qa-answer-text">@q.UserAnswer</p>
+                                                            @if (!string.IsNullOrEmpty(q.Feedback))
+                                                            {
+                                                                <div class="qa-feedback">
+                                                                    <span class="qa-feedback-label">AI FEEDBACK</span>
+                                                                    <p class="qa-feedback-text">@q.Feedback</p>
+                                                                </div>
+                                                            }
+                                                            @if (!string.IsNullOrEmpty(q.SuggestedAnswer))
+                                                            {
+                                                                <div class="qa-feedback" style="border-left-color:rgba(52,211,153,0.5);background:rgba(52,211,153,0.04);margin-top:0.5rem">
+                                                                    <span class="qa-feedback-label" style="color:#34d399">✅ SUGGESTED ANSWER</span>
+                                                                    <p class="qa-feedback-text">@q.SuggestedAnswer</p>
+                                                                </div>
+                                                            }
+                                                            @if (!string.IsNullOrEmpty(q.MissingPoints))
+                                                            {
+                                                                <div class="qa-feedback" style="border-left-color:rgba(251,191,36,0.5);background:rgba(251,191,36,0.04);margin-top:0.5rem">
+                                                                    <span class="qa-feedback-label" style="color:#fbbf24">⚠ MISSING POINTS</span>
+                                                                    <p class="qa-feedback-text">@q.MissingPoints</p>
+                                                                </div>
+                                                            }
+                                                        </div>
+                                                    }
+                                                    else
+                                                    {
+                                                        <div class="qa-card__body">
+                                                            <p style="color:#64748b;font-size:0.85rem;margin:0">No answer submitted</p>
+                                                        </div>
+                                                    }
+                                                </div>
+                                            }
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<InterviewSession> pastSessions = new();
+    private bool isLoading = true;
+    private int? expandedSessionId;
+    private int? deletingId;
+
+    private int AverageScore => pastSessions.Any() && pastSessions.SelectMany(s => s.Questions).Any()
+        ? (int)pastSessions.SelectMany(s => s.Questions).Average(q => q.Score) : 0;
+
+    private int TotalQuestions => pastSessions.Sum(s => s.Questions.Count);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Auth.GetAuthenticationStateAsync();
+        var userId = await Auth.GetUserIdAsync();
+        try
+        {
+            var response = await Http.GetAsync($"api/interviews/history/{userId}");
+            if (response.IsSuccessStatusCode)
+            {
+                var data = await response.Content.ReadFromJsonAsync<List<InterviewSession>>();
+                if (data != null) pastSessions = data;
+            }
+        }
+        catch { }
+        isLoading = false;
+    }
+
+    private void ToggleSession(int id) =>
+        expandedSessionId = expandedSessionId == id ? null : id;
+
+    private async Task DeleteSession(int sessionId)
+    {
+        deletingId = sessionId;
+        try
+        {
+            var response = await Http.DeleteAsync($"api/interviews/{sessionId}");
+            if (response.IsSuccessStatusCode)
+            {
+                pastSessions.RemoveAll(s => s.Id == sessionId);
+                if (expandedSessionId == sessionId) expandedSessionId = null;
+            }
+        }
+        catch { }
+        deletingId = null;
+    }
+
+    private string GetScoreColor(int score) => score switch
+    {
+        >= 80 => "text-info",
+        >= 50 => "text-warning",
+        _ => "text-danger"
+    };
+
+    private string GetRetakeUrl(InterviewSession session)
+    {
+        var weakTopic = session.Analytics?.WeakTopics?.Split(',').FirstOrDefault()?.Trim() ?? session.InterviewType;
+        return Nav.GetUriWithQueryParameters("/interview", new Dictionary<string, object?>
+        {
+            ["topic"] = weakTopic,
+            ["level"] = session.Level,
+            ["role"] = session.TargetRole,
+            ["goal"] = session.InterviewGoal
+        });
+    }
+}

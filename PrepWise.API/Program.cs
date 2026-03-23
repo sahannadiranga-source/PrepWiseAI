@@ -32,7 +32,24 @@ builder.Services.AddHttpClient<IOpenAIService, OpenAIService>();
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+
+builder.Services.AddCors(options =>
+{
+    var blazorOrigin = builder.Configuration["CorsOrigins:Blazor"] ?? "https://localhost:7189";
+    options.AddPolicy("AllowBlazor", policy =>
+        policy.WithOrigins(blazorOrigin)
+              .AllowAnyMethod()
+              .AllowAnyHeader());
+});
+
 var app = builder.Build();
+
+// Auto-migrate on startup (safe for both local and Docker)
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.Migrate();
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -42,6 +59,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.UseCors("AllowBlazor");
 
 app.UseAuthentication();
 

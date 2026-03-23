@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace PrepWise.API.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260322151813_AddUserIdToQuestion")]
+    partial class AddUserIdToQuestion
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -32,18 +35,8 @@ namespace PrepWise.API.Migrations
                     b.Property<string>("AdditionalContext")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("CvExtractedSkills")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("CvProfile")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<DateTime>("DateCreated")
                         .HasColumnType("datetime2");
-
-                    b.Property<string>("ExperienceLevel")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("InterviewGoal")
                         .IsRequired()
@@ -54,10 +47,6 @@ namespace PrepWise.API.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Level")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Mode")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
@@ -87,35 +76,14 @@ namespace PrepWise.API.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("Difficulty")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("Feedback")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("InterviewSessionId")
                         .HasColumnType("int");
 
-                    b.Property<bool>("IsFollowUp")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("MissingPoints")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("QuestionType")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<int>("Score")
                         .HasColumnType("int");
-
-                    b.Property<string>("Source")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("SuggestedAnswer")
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("UserAnswer")
                         .HasColumnType("nvarchar(max)");
@@ -128,51 +96,6 @@ namespace PrepWise.API.Migrations
                     b.HasIndex("InterviewSessionId");
 
                     b.ToTable("Questions");
-                });
-
-            modelBuilder.Entity("PrepWise.API.Models.SessionAnalytics", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("GeneratedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("OverallScore")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Recommendations")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("SessionId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("SkillBreakdown")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Strengths")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("WeakTopics")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Weaknesses")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("SessionId")
-                        .IsUnique();
-
-                    b.ToTable("SessionAnalytics");
                 });
 
             modelBuilder.Entity("PrepWise.API.Models.User", b =>
@@ -196,33 +119,6 @@ namespace PrepWise.API.Migrations
                     b.ToTable("Users");
                 });
 
-            modelBuilder.Entity("PrepWise.API.Models.UserSkill", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int?>("SessionId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("SkillName")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Source")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("UserSkills");
-                });
-
             modelBuilder.Entity("PrepWise.API.Models.InterviewSession", b =>
                 {
                     b.HasOne("PrepWise.API.Models.User", null)
@@ -241,19 +137,8 @@ namespace PrepWise.API.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("PrepWise.API.Models.SessionAnalytics", b =>
-                {
-                    b.HasOne("PrepWise.API.Models.InterviewSession", null)
-                        .WithOne("Analytics")
-                        .HasForeignKey("PrepWise.API.Models.SessionAnalytics", "SessionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("PrepWise.API.Models.InterviewSession", b =>
                 {
-                    b.Navigation("Analytics");
-
                     b.Navigation("Questions");
                 });
 

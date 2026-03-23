@@ -1,0 +1,96 @@
+﻿@page "/register"
+@inject HttpClient Http
+@inject NavigationManager Navigation
+
+<div class="auth-bg d-flex align-items-center justify-content-center">
+    <div class="auth-card animate__animated animate__fadeInUp">
+        <div class="text-center mb-4">
+            <div>
+                Prep<span class="text-gradient">Wise</span>
+            </div>
+            <h2 class="fw-bold text-white mb-1">Join <span class="text-gradient">PrepWise</span></h2>
+            <p class="text-muted small">Start your journey to becoming a top-tier dev</p>
+        </div>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert-error mb-3">
+                <span>⚠</span> @errorMessage
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(successMessage))
+        {
+            <div class="alert-success mb-3">
+                <span>✓</span> @successMessage
+            </div>
+        }
+
+        <div class="mb-3">
+            <label class="field-label">EMAIL ADDRESS</label>
+            <input type="email" class="field-input" @bind="regData.Email" placeholder="you@example.com" />
+        </div>
+
+        <div class="mb-4">
+            <label class="field-label">CREATE PASSWORD</label>
+            <input type="password" class="field-input" @bind="regData.PasswordHash" placeholder="Min. 6 characters" />
+        </div>
+
+        <button class="btn-primary-full" @onclick="HandleRegister" disabled="@isBusy">
+            @if (isBusy)
+            {
+                <span class="spinner-border spinner-border-sm me-2"></span>
+            }
+            Create Account
+        </button>
+
+        <div class="text-center mt-3">
+            <p class="text-muted small">Already a member? <a href="/login" class="link-accent">Sign in</a></p>
+        </div>
+    </div>
+</div>
+
+@code {
+    private RegisterRequest regData = new();
+    private string? errorMessage;
+    private string? successMessage;
+    private bool isBusy = false;
+
+    private async Task HandleRegister()
+    {
+        if (string.IsNullOrWhiteSpace(regData.Email) || string.IsNullOrWhiteSpace(regData.PasswordHash))
+        {
+            errorMessage = "Please fill in all fields.";
+            return;
+        }
+        if (regData.PasswordHash.Length < 6)
+        {
+            errorMessage = "Password must be at least 6 characters.";
+            return;
+        }
+
+        isBusy = true;
+        errorMessage = null;
+
+        try
+        {
+            var response = await Http.PostAsJsonAsync("api/auth/register", regData);
+            if (response.IsSuccessStatusCode)
+            {
+                successMessage = "Account created! Redirecting to login...";
+                await Task.Delay(1200);
+                Navigation.NavigateTo("/login");
+            }
+            else
+            {
+                errorMessage = "Registration failed. Email may already be in use.";
+            }
+        }
+        catch
+        {
+            errorMessage = "Could not connect to server. Please try again.";
+        }
+
+        isBusy = false;
+    }
+}

@@ -38,7 +38,7 @@ namespace PrepWise.API.Controllers
             if (user == null) return Unauthorized("Invalid credentials.");
 
             var token = GenerateJwtToken(user);
-            return Ok(new { Token = token });
+            return Ok(new { Token = token, UserId = user.Id, Email = user.Email });
         }
 
         private string GenerateJwtToken(User user)
