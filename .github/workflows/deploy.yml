@@ -35,6 +35,6 @@ jobs:
         username: ubuntu
         key: ${{ secrets.EC2_SSH_KEY }}
         script: |
-          cd ~/prepwise/PrepWiseAI
+          cd ~/PrepWiseAI
           docker-compose pull
           docker-compose up -d
